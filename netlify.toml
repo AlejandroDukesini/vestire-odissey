@@ -1,0 +1,16 @@
+# Despliegue en Netlify: SPA de Vite dentro del workspace "frontend".
+[build]
+  base = "/"
+  command = "npm run build"
+  publish = "frontend/dist"
+
+[build.environment]
+  NODE_VERSION = "22"
+  # Evita descargar navegadores de Playwright durante la instalación.
+  PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD = "1"
+
+# React Router (BrowserRouter): toda ruta sirve index.html.
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200
