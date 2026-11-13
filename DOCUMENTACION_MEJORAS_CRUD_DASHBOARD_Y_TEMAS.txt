@@ -1,0 +1,390 @@
+===============================================================================
+ ODISSEY · MEJORA INTEGRAL
+ CRUD completo, personalización visual, animaciones y dashboard central
+ Versión 0.3.0 · 13 de noviembre de 2026
+===============================================================================
+
+Leyenda de estado:
+  [OK]   Implementado y probado
+  [PAR]  Implementado parcialmente
+  [PEN]  Pendiente
+  [NV]   No viable con la arquitectura actual
+
+-------------------------------------------------------------------------------
+1. DIAGNÓSTICO INICIAL
+-------------------------------------------------------------------------------
+El encargo partía de que los módulos y las experiencias visuales ya existían.
+La auditoría del repositorio (rama desarrollo, commit 8f60508) mostró otra cosa:
+
+  Existía y estaba probado:
+  - IndexedDB con Dexie, esquema v1: items, media, mediaBlobs, thumbs,
+    compositions, incomeSources, incomeEntries, settings, meta.
+  - Relaciones: media.ownerId → activo o composición; items.primaryMediaId;
+    compositions.refs[].itemId; incomeEntries.sourceId.
+  - Fotografías: original en mediaBlobs y miniatura WEBP en thumbs.
+  - Modelos 3D: solo el campo items.model3dMediaId y la detección de GLB.
+    No había visor ni importación.
+  - Preferencias: currency, maxImageMB, maxModelMB, reduceMotion.
+  - Respaldo ZIP completo con checksums, en modo combinar o reemplazar.
+  - Capa de datos de las 9 categorías (crear, editar, eliminar) con pruebas.
+
+  No existía:
+  - Ninguna interfaz de módulo. Todas las secciones salvo Ajustes mostraban
+    "pendiente".
+  - Lógica de fuentes de ingreso, composiciones, temas, dashboard, animaciones
+    y pantalla de carga.
+  - Experiencias visuales específicas (caja fuerte de relojes, ambientes de
+    yates, escenarios de vehículos y casas). Al no existir, no se podían
+    "conservar". Siguen pendientes (sección 15).
+
+  Riesgos de datos detectados:
+  - deleteItem borraba de forma definitiva sin papelera.
+  - updateItem validaba solo los campos recibidos: una edición parcial podía
+    vaciar el resto.
+  Ambos quedaron corregidos (secciones 2 y 10).
+
+-------------------------------------------------------------------------------
+2. CRUD IMPLEMENTADO POR CATEGORÍA                                      [OK]
+-------------------------------------------------------------------------------
+Todas las categorías comparten un mismo motor, pero cada una tiene su propio
+esquema de campos y su propia validación (domain/kinds.js). No hay un
+formulario genérico con campos incorrectos.
+
+  Categoría            Ruta                         Campos específicos
+  Prendas              /vestimenta                  tipo (9 + personalizado), talla, material
+  Accesorios           /accesorios                  categoría (10 + personalizada)
+  Relojes              /relojes                     marca*, modelo, público
+  Yates                /propiedades/yates           marca*, modelo*, año, eslora, uso; foto obligatoria
+  Automóviles          /propiedades/automoviles     marca*, modelo*, año, tipo, kilometraje
+  Motocicletas         /propiedades/motocicletas    marca*, modelo*, año, tipo, kilometraje
+  Casas                /propiedades/casas           tipo de inmueble*, superficie (sin kilometraje)
+  Empresas físicas     /empresas/fisicas            tipo de inmueble* (empresa, local comercial,
+                                                    edificio, oficina...), actividad*, dirección
+  Negocios digitales   /empresas/digitales          URL principal, sitios asociados (lista)
+  Fuentes de ingreso   /ingresos                    categoría*, importe*, moneda, frecuencia*,
+                                                    inicio, estado, activo vinculado
+
+  Operaciones de cada categoría:
+  - Crear: botón "Agregar <tipo>" visible en cada listado y en los accesos
+    rápidos del dashboard (?nuevo=1 abre el formulario directamente).
+  - Consultar: ficha individual con información completa, galería, valor,
+    descripción, observaciones, fechas de creación y actualización, modelo 3D
+    y relaciones.
+  - Editar: el formulario se abre con los valores actuales; la galería se
+    gestiona en el mismo diálogo.
+  - Eliminar: confirmación que nombra el objeto y enumera sus relaciones;
+    pasa a la papelera.
+  - Papelera (Configuración → Papelera): restaurar o eliminar definitivamente
+    activos, composiciones y fuentes de ingreso.
+
+  Herramientas de listado: buscador sin distinguir tildes, filtros por los
+  atributos de cada categoría (talla, color, material, marca, modelo, año,
+  tipo, ubicación, categoría, frecuencia...), solo destacados, 6 órdenes,
+  carga progresiva de 24 en 24, contador de resultados, estado vacío y estado
+  sin resultados, esqueletos de carga y acciones rápidas en cada tarjeta
+  (editar, destacar, papelera).
+
+  Integridad: todas las pantallas leen los mismos registros con consultas
+  reactivas (useLiveQuery). Editar una prenda actualiza al momento su ficha,
+  el inventario, las composiciones donde aparece y el dashboard. No hay copias
+  del mismo objeto en distintas pantallas.
+
+-------------------------------------------------------------------------------
+3. FORMULARIOS Y VALIDACIONES                                           [OK]
+-------------------------------------------------------------------------------
+  - Obligatorios marcados con *, con mensajes por campo.
+  - Números con coma o punto decimal; no negativos; año entero entre 1885 y
+    el año próximo.
+  - Fechas ISO; selecciones solo con opciones válidas; moneda de una lista.
+  - URLs solo http/https (javascript: y similares se rechazan), normalizadas.
+    Las listas de URLs se deduplican.
+  - Los campos condicionales ocultos (p. ej. "tipo personalizado") se vacían
+    a propósito al guardar.
+  - Edición sin pérdidas: una clave ausente conserva su valor. Solo un valor
+    vacío explícito borra un campo opcional. Los obligatorios no se pueden
+    vaciar. Fotografías, modelo y relaciones nunca se tocan al editar.
+  - Al cerrar con cambios sin guardar se pide confirmación.
+
+-------------------------------------------------------------------------------
+4. GESTIÓN DE FOTOGRAFÍAS Y MODELOS                                     [OK]
+-------------------------------------------------------------------------------
+  - Subir varias fotos (selector o arrastrar y soltar), con previsualización
+    antes de guardar y elección de la principal.
+  - En la galería: cambiar la principal, reordenar (campo media.order),
+    eliminar de una en una con confirmación y ampliar en visor.
+  - Persistencia: el Blob original en IndexedDB (mediaBlobs). Las URLs de
+    objeto solo se crean para mostrar la imagen, bajo demanda
+    (IntersectionObserver), y se liberan al desmontar. Nunca se guardan.
+  - Duplicados: la misma imagen (sha256) no se guarda dos veces en un objeto.
+  - Modelos 3D: importación de .glb (glTF 2.0 binario) validada por contenido
+    y con límite de tamaño configurable. Se puede sustituir o quitar.
+  - Visor 3D (Three.js / React Three Fiber), cargado solo al abrir la
+    pestaña "Modelo 3D":
+      * rotar, ampliar y reducir (OrbitControls); rotación automática opcional;
+      * renderizado bajo demanda: no consume GPU en reposo;
+      * al salir se liberan geometrías, materiales, texturas y la URL temporal;
+      * sin peticiones externas (no se usan HDR remotos ni decodificadores
+        Draco de CDN).
+  - No se simula ningún 3D: sin modelo, la ficha muestra la fotografía.
+
+-------------------------------------------------------------------------------
+5. ARQUITECTURA DE TEMAS                                                [OK]
+-------------------------------------------------------------------------------
+  - 12 tokens globales como variables CSS (--c-primary, --c-secondary,
+    --c-accent, --c-bg, --c-surface, --c-card, --c-text, --c-muted,
+    --c-border, --c-success, --c-warning, --c-error), más --c-on-primary y
+    --c-on-accent, calculados por contraste.
+  - Tailwind v4 los consume mediante @theme inline (bg-primary, text-fg,
+    border-line, bg-fg/5...). Los componentes no llevan colores fijos.
+  - theme/apply.js es el único punto que escribe los colores en :root.
+  - Tema normal: superficies sólidas, bordes discretos y sombras moderadas.
+  - Tema glassmorphism ([data-theme=glass]): paneles con un 70-86 % de
+    opacidad, desenfoque de 22 px, bordes semitransparentes, reflejo interior
+    y un fondo ambiental con profundidad. La opacidad mínima garantiza la
+    legibilidad.
+  - Los componentes .panel, .card y .overlay definen en un solo lugar cómo se
+    ve cada superficie en cada tema.
+
+-------------------------------------------------------------------------------
+6. PERSONALIZACIÓN DE PALETAS                                           [OK]
+-------------------------------------------------------------------------------
+  Configuración → Apariencia:
+  - Selector de tema: Normal o Glassmorphism.
+  - 8 paletas predefinidas: Midnight Luxury (predeterminada), Royal Gold,
+    Minimal Light, Graphite, Ocean Blue, Emerald, Rose y Monochrome.
+  - Editor de los 12 colores con selector y campo HEX (#RGB o #RRGGBB, con
+    validación).
+  - Aviso de legibilidad si un contraste baja del mínimo WCAG.
+  - Vista previa en tiempo real de botones, tarjetas, paneles, textos,
+    formulario y estados.
+  - Botones:
+      * Aplicar cambios: toda la app, sin guardar.
+      * Guardar configuración: en IndexedDB.
+      * Cancelar: vuelve a lo guardado.
+      * Restaurar valores predeterminados.
+  - Nivel de animación: según el sistema, completas o reducidas.
+  - Persistencia: settings.appearance en IndexedDB. Una copia ligera en
+    localStorage sirve solo para pintar el primer fotograma sin parpadeo; la
+    fuente de verdad es IndexedDB. Las configuraciones antiguas o incompletas
+    se completan y sanean (sanitizeAppearance), así que actualizar la versión
+    no las restablece.
+
+-------------------------------------------------------------------------------
+7. SISTEMA DE ANIMACIONES                                               [OK]
+-------------------------------------------------------------------------------
+  Lenguaje de movimiento común (index.css), solo con transform y opacity:
+  - Navegación: entrada de página de 260 ms (desplazamiento y fundido).
+  - Tarjetas: aparición escalonada (35 ms por elemento, tope de 12).
+  - Modales: escala y fundido, con fondo desenfocado.
+  - Menú lateral móvil: deslizamiento.
+  - Pestañas: transición de color; indicador lateral animado en la navegación.
+  - Botones: elevación al pasar el cursor y compresión al pulsar; tooltips.
+  - Galerías: zoom suave de la imagen al pasar el cursor; esqueletos de carga.
+  Rendimiento:
+  - Nada se anima en bucle salvo la pantalla de carga y los esqueletos.
+  - El visor 3D renderiza bajo demanda y se libera al salir.
+  - Gráficos sin animación de entrada.
+  - Movimiento reducido: se respeta prefers-reduced-motion (salvo que el
+    usuario elija "completas") y la preferencia propia "reducidas".
+    Las animaciones duran 0,01 ms.
+  - Las experiencias específicas (caja fuerte, yates, vehículos, casas) no
+    existían; ver sección 15.
+
+-------------------------------------------------------------------------------
+8. PANTALLA DE CARGA                                                    [OK]
+-------------------------------------------------------------------------------
+  app/Splash.jsx:
+  - Etapa 1: el fondo aparece con el tema guardado; el emblema surge con
+    escala, desenfoque y perspectiva.
+  - Etapa 2: un anillo se dibuja, un punto orbita, el título se expande, una
+    barra indeterminada recorre y aparece un texto de bienvenida.
+  - Etapa 3: desvanecimiento con escala y desenfoque mientras el dashboard ya
+    está montado debajo.
+  Reglas:
+  - Mínimo 2 s (MIN_SPLASH_MS). Si la carga tarda más, espera a que la base de
+    datos y la apariencia estén listas. A los 10 s avisa de que tarda más de lo
+    habitual.
+  - Solo en la primera apertura de cada sesión (sessionStorage). No aparece
+    al recargar ni al cambiar de ruta. Se puede desactivar en Configuración →
+    General.
+  - El indicador es indeterminado: no hay porcentajes falsos.
+  - Si la inicialización falla, muestra el error con su causa y un botón
+    Reintentar. No bloquea y no borra nada.
+  - Con movimiento reducido se muestra estática y sin animación de salida.
+
+-------------------------------------------------------------------------------
+9. DASHBOARD Y CÁLCULOS                                                 [OK]
+-------------------------------------------------------------------------------
+  Ruta / (punto de entrada). Cálculos puros en domain/stats.js, sobre los
+  registros reales:
+  - Encabezado: saludo según la hora, fecha, acceso a configuración, búsqueda
+    global (activos, fuentes y composiciones; Ctrl+K; navegación con teclado)
+    y 8 accesos rápidos que abren el formulario correspondiente.
+  - Indicadores: valor total registrado, total de objetos, prendas, accesorios,
+    relojes, vehículos y yates, inmuebles, empresas, fuentes de ingreso
+    (activas/total) y previsualizaciones.
+  - Monedas: nunca se suman monedas distintas. Los importes se agrupan por
+    moneda, con la principal (Ajustes) destacada. Los valores sin moneda se
+    muestran aparte.
+  - Distribución de activos (número y %) y valor registrado por categoría,
+    con selector de moneda. Siempre se indica "valor declarado, no de mercado".
+  - Ingresos:
+      * ingreso recurrente esperado en equivalente mensual (importe ×
+        frecuencia: diaria 365,25/12; semanal 52/12; quincenal 2; mensual 1;
+        anual 1/12; única 0);
+      * recibido y esperado registrado del mes;
+      * evolución de 12 meses (esperado frente a recibido, con tabla
+        alternativa);
+      * distribución por categoría, frecuencias activas y últimos movimientos.
+    El valor de los activos nunca se interpreta como ingreso.
+  - Destacados: últimos registrados, marcados como destacados, relojes y
+    propiedades. Más composiciones recientes y la actividad reciente (solo
+    eventos reales del historial).
+  - Gráficos: barras de una sola serie con el color primario del tema; el de
+    ingresos usa dos colores categóricos validados (azul y naranja, con pasos
+    distintos para tema claro y oscuro), leyenda, tooltip y vista en tabla.
+    Recharts se carga bajo demanda.
+
+-------------------------------------------------------------------------------
+10. CAMBIOS EN INDEXEDDB
+-------------------------------------------------------------------------------
+  Esquema v2 (db/schema.js), solo aditivo:
+  - items: nuevo índice deletedAt. Campos nuevos en registros nuevos:
+    featured, deletedAt.
+  - compositions: índice deletedAt.
+  - incomeSources: índice deletedAt.
+  - media: campo order (orden de la galería).
+  - activity (tabla nueva): id, at, type, entityId. Historial de actividad.
+  - settings: claves nuevas appearance y splash.
+  - Respaldo: la tabla activity se incluye en el ZIP y es opcional al importar,
+    así que los respaldos de la versión 0.2 siguen siendo válidos.
+  No se ha eliminado ni vaciado ninguna tabla. No cambia ningún identificador.
+
+-------------------------------------------------------------------------------
+11. MIGRACIONES REALIZADAS
+-------------------------------------------------------------------------------
+  v1 → v2: la función upgrade asigna `order` a las fotos existentes según su
+  fecha de creación, para cada propietario. No modifica ni borra nada más.
+  Los registros sin featured o deletedAt se interpretan como "no destacado" y
+  "no eliminado".
+  Prueba: tests/lifecycle.test.js, "migración real v1 → v2". Crea una base v1
+  con datos, binarios y ajustes, la abre con v2 y comprueba conservación,
+  orden, ajustes y binarios.
+
+-------------------------------------------------------------------------------
+12. ARCHIVOS MODIFICADOS Y NUEVOS
+-------------------------------------------------------------------------------
+  Datos y dominio:
+    M src/db/schema.js, items.js, media.js, backup.js, settings.js
+    N src/db/activity.js, compositions.js, income.js
+    M src/domain/kinds.js
+    N src/domain/income.js, stats.js
+    M src/lib/files.js (validación de GLB)
+  Tema:
+    N src/theme/palettes.js, apply.js, ThemeProvider.jsx
+    M src/index.css (tokens, temas, movimiento, presentación)
+  Aplicación:
+    M src/main.jsx, src/app/App.jsx, Layout.jsx, nav.js
+    N src/app/Splash.jsx, useSettings.js
+    M src/components/ui.jsx
+    N src/components/MediaImage.jsx
+  Módulos:
+    N src/features/items/ (CollectionPage, ItemDetailPage, ItemForm, ItemCard,
+      GalleryManager, ModelViewer, useItemActions)
+    N src/features/income/ (IncomePage, IncomeDetailPage, IncomeForm)
+    N src/features/preview/ (PreviewListPage, PreviewEditorPage)
+    N src/features/dashboard/ (DashboardPage, GlobalSearch, IncomeChart)
+    N src/features/settings/AppearanceEditor.jsx, TrashPanel.jsx
+    M src/features/settings/SettingsPage.jsx (pestañas)
+    D src/features/placeholder/Pending.jsx (ya no hay pantallas sin implementar)
+  Pruebas:
+    M tests/items.test.js
+    N tests/lifecycle.test.js
+    M e2e/persistence.spec.js
+    N e2e/crud.spec.js, theme.spec.js, splash.spec.js, visual.spec.js,
+      helpers.js
+  Dependencias nuevas: three, @react-three/fiber, @react-three/drei, recharts.
+
+-------------------------------------------------------------------------------
+13. PRUEBAS EJECUTADAS
+-------------------------------------------------------------------------------
+  Unitarias e integración (Vitest + fake-indexeddb, bases de datos aisladas):
+  43 pruebas.
+    - CRUD de las 9 categorías; validaciones (obligatorios, números, año,
+      selecciones, moneda, URL peligrosa, lista de URLs)
+    - Edición parcial sin pérdida de campos, fotos ni modelo; vaciado explícito
+    - Papelera: ocultar, conservar archivos, restaurar
+    - Eliminación definitiva sin tocar composiciones, archivos de otros
+      objetos ni fuentes vinculadas
+    - Composiciones: anclas normalizadas, papelera, borrado solo de su foto
+    - Orden de fotos al reordenar y al añadir
+    - Modelo GLB: validación, respaldo y restauración, borrado
+    - Fuentes de ingreso y movimientos; equivalente mensual por frecuencia
+    - Indicadores: solo vigentes, sin mezclar monedas; ingresos por mes
+    - Historial de actividad real
+    - Migración real v1 → v2
+    - Respaldos (ida y vuelta, combinar, reemplazar atómico, archivos dañados)
+      e integridad
+
+  Navegador real (Playwright + Chromium, perfil temporal vacío): 11 pruebas.
+    - Prenda: crear con 2 fotos, validación, ficha, edición parcial (las 2 fotos
+      se conservan), recarga, dashboard (1 prenda; 150 US$), papelera con
+      confirmación que nombra el objeto, dashboard a 0, restaurar
+    - Formularios propios de yate (foto obligatoria), automóvil (año
+      validado), casa (sin kilometraje), empresa física, negocio digital
+      (enlaces externos con rel=noopener), reloj y accesorio; filtros,
+      búsqueda, estado sin resultados, indicadores y búsqueda global
+    - Fuente de ingreso: crear, registrar recibido, reflejo en el dashboard
+      (recibido 3000; equivalente mensual quincenal 6000; 1/1) y gráfico
+      dibujado
+    - Previsualización: referencia por clic, conector SVG, guardado, recarga,
+      posición relativa idéntica (0,50/0,30) tras redimensionar, inicio del
+      conector sobre el ancla y relación visible desde la ficha
+    - Temas: glass, paleta, HEX válido e inválido, aplicar sin guardar,
+      cancelar, guardar, persistencia en IndexedDB tras recargar (sin la copia
+      de localStorage), restaurar predeterminados
+    - Paleta clara y 6 pantallas en móvil sin desbordamiento horizontal
+    - Pantalla de carga de al menos 2 s, ausente al recargar y al navegar
+    - Movimiento reducido: animaciones anuladas
+    - Error de inicialización simulado: mensaje y reintento correcto
+    - Persistencia de datos, fotos y modelo 3D; respaldo restaurado en otro
+      perfil e idéntico
+    - Revisión visual con datos de ejemplo en ambos temas, escritorio y móvil
+
+  Además: npm run build compila sin errores.
+
+-------------------------------------------------------------------------------
+14. RESULTADOS
+-------------------------------------------------------------------------------
+  - 43/43 pruebas unitarias e integración superadas.
+  - 11/11 pruebas en navegador superadas (dos ejecuciones completas seguidas
+    sin fallos).
+  - Errores reales detectados y corregidos durante las pruebas:
+      * el cierre programático de un <dialog> disparaba "¿Descartar cambios?"
+        al guardar;
+      * la pantalla de carga cancelaba su temporizador de salida;
+      * las previsualizaciones de fotos pendientes se liberaban antes de tiempo;
+      * la galería del formulario de edición usaba datos desactualizados.
+  - Tamaño: la carga inicial ocupa 561 KB sin comprimir (≈170 KB con gzip).
+    El visor 3D (988 KB) y el gráfico (371 KB) se cargan bajo demanda.
+  - Los datos reales del usuario no se tocaron: las pruebas usan IndexedDB en
+    memoria o perfiles temporales de Chromium.
+
+-------------------------------------------------------------------------------
+15. FUNCIONALIDADES PENDIENTES
+-------------------------------------------------------------------------------
+  [PEN] Experiencias visuales específicas (Fase 4): caja fuerte de relojes,
+        agua animada de yates, escenarios día/atardecer/noche en playa,
+        montaña o valle para vehículos, ambientes de casas y empresas físicas,
+        y vista previa embebida de negocios digitales. Hoy estas categorías
+        usan galería y ficha comunes.
+  [PEN] Recorte de fondo local (rembg en FastAPI) o subida de PNG recortado
+        para los escenarios de vehículos.
+  [PEN] Modelos GLTF con recursos externos, OBJ y STL; GLB con compresión
+        Draco o Meshopt (necesitan decodificadores locales).
+  [PEN] Fotogrametría opcional y de baja prioridad (Fase 5).
+  [PEN] Conversión entre monedas con tipos de cambio introducidos por el
+        usuario (hoy se agrupa por moneda).
+  [PEN] Reordenar fotos arrastrando (hoy se hace con botones izquierda y
+        derecha, también accesibles por teclado).
+  [PAR] El respaldo ZIP se construye en memoria (ver documentación principal).

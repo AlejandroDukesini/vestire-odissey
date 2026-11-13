@@ -4,7 +4,9 @@ export const SETTING_DEFAULTS = {
   currency: 'USD',
   maxImageMB: 40,
   maxModelMB: 200,
-  reduceMotion: 'system', // system | on | off
+  reduceMotion: 'system', // system | on | off  (on = movimiento reducido)
+  appearance: null, // { theme, palette, colors } — null = valores predeterminados (ver theme/palettes.js)
+  splash: true, // pantalla de presentación al abrir cada sesión
 }
 
 export async function getSettings(db) {

@@ -1,7 +1,7 @@
 {
   "name": "vestire-odissey",
   "private": true,
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Plataforma local de patrimonio personal: vestimenta, colecciones, propiedades, empresas y fuentes de ingreso.",
   "workspaces": [
     "frontend"

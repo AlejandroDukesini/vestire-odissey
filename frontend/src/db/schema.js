@@ -35,12 +35,44 @@ export const SCHEMA_VERSIONS = [
       meta: 'key',
     },
   },
+  {
+    // v2: papelera (deletedAt), orden de fotografías, historial de actividad.
+    // Aditiva: solo añade índices, una tabla nueva y el campo `order` en media.
+    version: 2,
+    stores: {
+      items: 'id, kind, [kind+createdAt], updatedAt, deletedAt',
+      media: 'id, ownerId, [ownerId+role], sha256, role',
+      mediaBlobs: 'id',
+      thumbs: 'id',
+      compositions: 'id, photoMediaId, updatedAt, deletedAt',
+      incomeSources: 'id, category, active, deletedAt',
+      incomeEntries: 'id, sourceId, date, [sourceId+date], type',
+      settings: 'key',
+      meta: 'key',
+      activity: 'id, at, type, entityId',
+    },
+    upgrade: async (tx) => {
+      // Asigna un orden estable a las fotos existentes según su fecha de creación.
+      const media = await tx.table('media').toArray()
+      const byOwner = new Map()
+      for (const m of media) {
+        if (!byOwner.has(m.ownerId)) byOwner.set(m.ownerId, [])
+        byOwner.get(m.ownerId).push(m)
+      }
+      for (const list of byOwner.values()) {
+        list.sort((a, b) => a.createdAt - b.createdAt)
+        for (let i = 0; i < list.length; i++) {
+          if (list[i].order === undefined) await tx.table('media').update(list[i].id, { order: i })
+        }
+      }
+    },
+  },
 ]
 
 export const CURRENT_SCHEMA_VERSION = SCHEMA_VERSIONS.at(-1).version
 
 export const DATA_TABLES = [
-  'items', 'media', 'compositions', 'incomeSources', 'incomeEntries', 'settings', 'meta',
+  'items', 'media', 'compositions', 'incomeSources', 'incomeEntries', 'settings', 'meta', 'activity',
 ]
 export const BINARY_TABLES = ['mediaBlobs', 'thumbs']
 

@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { freshDb, fakeImage } from './helpers.js'
-import { createItem, updateItem, deleteItem, listItems, getItem } from '../src/db/items.js'
+import { createItem, updateItem, purgeItem, listItems, getItem } from '../src/db/items.js'
 import { addItemImages, setPrimaryMedia, deleteMedia, listMedia, getMediaBlob } from '../src/db/media.js'
 import { ValidationError } from '../src/db/errors.js'
 import { KIND_KEYS, KINDS } from '../src/domain/kinds.js'
@@ -10,10 +10,10 @@ export const sample = {
   accessory: { name: 'Gafas', category: 'Gafas' },
   watch: { brand: 'Marca', name: 'Diver', audience: 'Unisex', value: 5000 },
   yacht: { brand: 'Astillero', model: 'X50', location: 'Puerto' },
-  car: { brand: 'Marca', model: 'GT', mileage: 12000 },
+  car: { brand: 'Marca', model: 'GT', year: 2022, bodyType: 'Coupé', mileage: 12000 },
   motorcycle: { brand: 'Marca', model: 'R1', mileage: '800' },
   house: { name: 'Casa del lago', propertyType: 'Villa', value: 900000 },
-  physicalBusiness: { name: 'Café', businessType: 'Restaurante', address: 'Calle 1' },
+  physicalBusiness: { name: 'Café', premisesType: 'Local comercial', businessType: 'Restaurante', address: 'Calle 1' },
   digitalBusiness: { name: 'Tienda', url: 'tienda.example.com' },
 }
 
@@ -30,7 +30,7 @@ describe('activos: crear, editar, eliminar cada tipo', () => {
       expect(edited.fields.description).toBe('editado')
       expect(edited.updatedAt).toBeGreaterThanOrEqual(item.updatedAt)
 
-      await deleteItem(db, item.id)
+      await purgeItem(db, item.id)
       expect(await getItem(db, item.id)).toBeUndefined()
       expect(await db.media.count()).toBe(0)
       expect(await db.mediaBlobs.count()).toBe(0)

@@ -44,8 +44,9 @@ npm run dev:all
 
 - Se guardan en IndexedDB **de este navegador y este perfil**. Si borras los datos del sitio, cambias de
   navegador o de perfil, no estarán disponibles.
-- Crea copias de seguridad desde **Ajustes → Copias de seguridad**. El archivo `.zip` incluye registros,
+- Crea copias de seguridad desde **Configuración → Datos y respaldos**. El archivo `.zip` incluye registros,
   fotografías originales, miniaturas, modelos 3D y composiciones, y sirve para trasladar todo a otro dispositivo.
 - El servidor de desarrollo solo escucha en `127.0.0.1`; no es accesible desde la red.
 
-Consulta `DOCUMENTACION_PROYECTO_PATRIMONIO.txt` para la arquitectura completa y el estado de cada módulo.
+Consulta `DOCUMENTACION_PROYECTO_PATRIMONIO.txt` (arquitectura y estado de cada fase) y
+`DOCUMENTACION_MEJORAS_CRUD_DASHBOARD_Y_TEMAS.txt` (CRUD, temas, animaciones, dashboard y pruebas de la versión 0.3.0).

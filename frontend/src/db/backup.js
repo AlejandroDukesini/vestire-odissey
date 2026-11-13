@@ -9,13 +9,16 @@ import { Zip, ZipDeflate, ZipPassThrough, unzipSync, strToU8, strFromU8 } from '
 import { CURRENT_SCHEMA_VERSION } from './schema.js'
 import { guardWrite } from './errors.js'
 import { setMeta } from './settings.js'
+import { logActivity } from './activity.js'
 import { sha256Hex, EXT_BY_MIME } from '../lib/files.js'
 import { isKind } from '../domain/kinds.js'
 
 export const BACKUP_FORMAT = 'odissey-patrimonio-backup'
 export const BACKUP_FORMAT_VERSION = 1
-export const EXPORT_TABLES = ['items', 'media', 'compositions', 'incomeSources', 'incomeEntries', 'settings']
-const MUTABLE_TABLES = ['items', 'compositions', 'incomeSources', 'incomeEntries']
+export const EXPORT_TABLES = ['items', 'media', 'compositions', 'incomeSources', 'incomeEntries', 'settings', 'activity']
+// Tablas que pueden faltar en respaldos creados por versiones anteriores.
+const OPTIONAL_TABLES = new Set(['activity'])
+const MUTABLE_TABLES = ['items', 'compositions', 'incomeSources', 'incomeEntries', 'activity']
 
 export class BackupError extends Error {
   constructor(message) { super(message); this.name = 'BackupError' }
@@ -136,6 +139,7 @@ export async function readBackup(file) {
   const tables = {}
   for (const t of EXPORT_TABLES) {
     const raw = entries[`data/${t}.json`]
+    if (!raw && OPTIONAL_TABLES.has(t)) { tables[t] = []; continue }
     if (!raw) throw new BackupError(`Falta la tabla ${t} en el respaldo.`)
     const arr = JSON.parse(strFromU8(raw))
     if (!Array.isArray(arr)) throw new BackupError(`La tabla ${t} no tiene un formato válido.`)
@@ -158,7 +162,7 @@ export async function readBackup(file) {
   if (validMedia.length !== tables.media.length) warnings.push(`${tables.media.length - validMedia.length} archivo(s) sin binario original se omitirán.`)
   tables.media = validMedia
 
-  for (const t of ['compositions', 'incomeSources', 'incomeEntries']) tables[t] = tables[t].filter((r) => isId(r?.id))
+  for (const t of ['compositions', 'incomeSources', 'incomeEntries', 'activity']) tables[t] = tables[t].filter((r) => isId(r?.id))
   tables.settings = tables.settings.filter((r) => typeof r?.key === 'string')
 
   const totalBytes = Object.values(manifest.files).reduce((s, f) => s + (f.size || 0), 0)
@@ -229,5 +233,6 @@ export async function applyBackup(db, parsed, { mode }) {
     }),
   )
   await setMeta(db, 'lastRestore', { at: Date.now(), mode, stats, backupCreatedAt: parsed.manifest.createdAt })
+  try { await logActivity(db, { type: 'backup.restored', detail: { mode, ...stats } }) } catch { /* el historial no es crítico */ }
   return stats
 }

@@ -1,37 +1,66 @@
 import {
-  LayoutDashboard, Shirt, Glasses, ScanEye, Watch, Ship, Car, Bike, Home, Building2, Globe, Wallet, Settings,
+  LayoutDashboard, Shirt, Glasses, ScanEye, Watch, Landmark, Building2, Wallet, Settings, Ship, Car, Bike, Home, Globe,
 } from 'lucide-react'
 
-// Navegación única de la aplicación. `phase` indica en qué fase se entrega el módulo.
+// Secciones de colección: cada pestaña corresponde a una categoría (kind) del catálogo.
+export const SECTIONS = {
+  vestimenta: { path: '/vestimenta', title: 'Vestimenta', eyebrow: 'Guardarropa', tabs: [{ slug: null, kind: 'garment', icon: Shirt }] },
+  accesorios: { path: '/accesorios', title: 'Accesorios', eyebrow: 'Guardarropa', tabs: [{ slug: null, kind: 'accessory', icon: Glasses }] },
+  relojes: { path: '/relojes', title: 'Relojes', eyebrow: 'Colección', tabs: [{ slug: null, kind: 'watch', icon: Watch }] },
+  propiedades: {
+    path: '/propiedades', title: 'Propiedades', eyebrow: 'Patrimonio',
+    tabs: [
+      { slug: 'yates', kind: 'yacht', icon: Ship },
+      { slug: 'automoviles', kind: 'car', icon: Car },
+      { slug: 'motocicletas', kind: 'motorcycle', icon: Bike },
+      { slug: 'casas', kind: 'house', icon: Home },
+    ],
+  },
+  empresas: {
+    path: '/empresas', title: 'Empresas', eyebrow: 'Negocios',
+    tabs: [
+      { slug: 'fisicas', kind: 'physicalBusiness', icon: Building2 },
+      { slug: 'digitales', kind: 'digitalBusiness', icon: Globe },
+    ],
+  },
+}
+
 export const NAV = [
-  { group: null, items: [{ to: '/', label: 'Patrimonio', icon: LayoutDashboard, phase: 6 }] },
+  { group: null, items: [{ to: '/', label: 'Dashboard', icon: LayoutDashboard }] },
   {
-    group: 'Vestimenta',
+    group: 'Guardarropa',
     items: [
-      { to: '/vestimenta', label: 'Prendas', icon: Shirt, phase: 3, kind: 'garment' },
-      { to: '/accesorios', label: 'Accesorios', icon: Glasses, phase: 3, kind: 'accessory' },
-      { to: '/previsualizacion', label: 'Previsualización', icon: ScanEye, phase: 4 },
+      { to: '/vestimenta', label: 'Vestimenta', icon: Shirt },
+      { to: '/accesorios', label: 'Accesorios', icon: Glasses },
+      { to: '/previsualizaciones', label: 'Previsualizaciones', icon: ScanEye },
     ],
   },
-  { group: 'Colección', items: [{ to: '/relojes', label: 'Relojes', icon: Watch, phase: 3, kind: 'watch' }] },
+  { group: 'Colección', items: [{ to: '/relojes', label: 'Relojes', icon: Watch }] },
   {
-    group: 'Propiedades',
+    group: 'Patrimonio',
     items: [
-      { to: '/propiedades/yates', label: 'Yates', icon: Ship, phase: 3, kind: 'yacht' },
-      { to: '/propiedades/automoviles', label: 'Automóviles', icon: Car, phase: 3, kind: 'car' },
-      { to: '/propiedades/motocicletas', label: 'Motocicletas', icon: Bike, phase: 3, kind: 'motorcycle' },
-      { to: '/propiedades/casas', label: 'Casas', icon: Home, phase: 3, kind: 'house' },
+      { to: '/propiedades', label: 'Propiedades', icon: Landmark },
+      { to: '/empresas', label: 'Empresas', icon: Building2 },
+      { to: '/ingresos', label: 'Fuentes de ingresos', icon: Wallet },
     ],
   },
-  {
-    group: 'Empresas',
-    items: [
-      { to: '/empresas/fisicas', label: 'Empresas físicas', icon: Building2, phase: 3, kind: 'physicalBusiness' },
-      { to: '/empresas/digitales', label: 'Negocios digitales', icon: Globe, phase: 3, kind: 'digitalBusiness' },
-    ],
-  },
-  { group: 'Finanzas', items: [{ to: '/ingresos', label: 'Fuentes de ingreso', icon: Wallet, phase: 3 }] },
-  { group: null, items: [{ to: '/ajustes', label: 'Ajustes', icon: Settings, phase: 2 }] },
+  { group: null, items: [{ to: '/ajustes', label: 'Configuración', icon: Settings }] },
 ]
 
-export const ALL_ROUTES = NAV.flatMap((g) => g.items)
+/** Ruta de la ficha de un activo. */
+export function itemPath(item) {
+  for (const s of Object.values(SECTIONS)) {
+    const tab = s.tabs.find((t) => t.kind === item.kind)
+    if (tab) return `${s.path}${tab.slug ? `/${tab.slug}` : ''}/${item.id}`
+  }
+  return '/'
+}
+
+/** Ruta del listado de una categoría (con ?nuevo=1 abre directamente el formulario). */
+export function kindListPath(kind, { create = false } = {}) {
+  for (const s of Object.values(SECTIONS)) {
+    const tab = s.tabs.find((t) => t.kind === kind)
+    if (tab) return `${s.path}${tab.slug ? `/${tab.slug}` : ''}${create ? '?nuevo=1' : ''}`
+  }
+  return '/'
+}

@@ -1,7 +1,8 @@
 ===============================================================================
  ODISSEY · PLATAFORMA DE PATRIMONIO PERSONAL
  Documentación técnica del proyecto
- Versión del documento: 0.2.0 (Fase 2 completada)
+ Versión del documento: 0.3.0 (Fases 2, 3 y 6 completadas; 4 y 5 parciales)
+ Detalle de la versión 0.3.0: DOCUMENTACION_MEJORAS_CRUD_DASHBOARD_Y_TEMAS.txt
 ===============================================================================
 
 1. ESTADO DEL PROYECTO
@@ -14,10 +15,14 @@ Leyenda:
 
   Fase 1 · Auditoría y arquitectura .......................... [OK]
   Fase 2 · Persistencia (IndexedDB + Dexie, respaldo) ........ [OK]
-  Fase 3 · Módulos CRUD ...................................... [PEN]
-  Fase 4 · Experiencias visuales ............................. [PEN]
-  Fase 5 · Visualización 3D y fotogrametría .................. [PEN]
-  Fase 6 · Dashboard y analítica ............................. [PEN]
+  Fase 3 · Módulos CRUD ...................................... [OK]
+  Fase 4 · Experiencias visuales ............................. [PAR]
+         Previsualización de vestimenta [OK]; temas, animaciones y
+         pantalla de carga [OK]; caja fuerte, yates, vehículos, casas,
+         empresas y vista embebida de negocios digitales [PEN]
+  Fase 5 · Visualización 3D y fotogrametría .................. [PAR]
+         Importación y visor GLB [OK]; otros formatos y fotogrametría [PEN]
+  Fase 6 · Dashboard y analítica ............................. [OK]
   Fase 7 · Pruebas finales, seguridad y documentación ........ [PEN]
 
   Detalle de la Fase 2:
@@ -88,7 +93,9 @@ Leyenda:
 
 5. MODELO DE ALMACENAMIENTO
 -------------------------------------------------------------------------------
-  Base de datos IndexedDB: "odissey-patrimonio" (esquema versión 1)
+  Base de datos IndexedDB: "odissey-patrimonio" (esquema versión 2;
+  v2 añade papelera, orden de fotos y la tabla activity; ver el documento
+  de mejoras, secciones 10-11)
 
   Tabla           Clave / índices                       Contenido
   items           id, kind, [kind+createdAt], updatedAt  Activos de todas las categorías
@@ -235,8 +242,8 @@ Leyenda:
 
 12. LIMITACIONES Y PENDIENTES
 -------------------------------------------------------------------------------
-  - Los módulos de las Fases 3 a 6 muestran una página de "pendiente"; no
-    simulan funcionalidad.
+  - Experiencias visuales específicas por categoría y fotogrametría: ver la
+    sección 15 del documento de mejoras.
   - Respaldo en memoria (ver sección 7).
   - No hay conversión automática entre monedas: los valores se agruparán por
     moneda en el dashboard (Fase 6).

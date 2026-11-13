@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
+import { useSearchParams } from 'react-router'
 import { useLiveQuery } from 'dexie-react-hooks'
-import { Download, HardDrive, ShieldCheck, Upload } from 'lucide-react'
+import { Database, Download, HardDrive, Palette, ShieldCheck, SlidersHorizontal, Trash2, Upload } from 'lucide-react'
 import { db } from '../../db/index.js'
 import { getSettings, setSetting, SETTING_DEFAULTS } from '../../db/settings.js'
 import { exportBackup, readBackup, applyBackup, markBackupDone, backupFileName } from '../../db/backup.js'
@@ -11,7 +12,10 @@ import { CURRENCIES } from '../../domain/kinds.js'
 import { formatBytes, makeThumbnail } from '../../lib/files.js'
 import { formatDateTime } from '../../lib/format.js'
 import { saveBlob } from '../../lib/download.js'
-import { Button, Dialog, Field, Notice, PageHeader, Panel, useConfirm, useToast } from '../../components/ui.jsx'
+import { Button, Dialog, Field, Notice, PageHeader, Panel, Tabs, useConfirm, useToast } from '../../components/ui.jsx'
+import { logActivity } from '../../db/activity.js'
+import AppearanceEditor from './AppearanceEditor.jsx'
+import TrashPanel from './TrashPanel.jsx'
 import pkg from '../../../package.json'
 
 const ISSUE_LABELS = {
@@ -29,7 +33,12 @@ function PreferencesPanel() {
   const toast = useToast()
   if (!settings) return null
   const save = async (key, value) => {
-    try { await setSetting(db, key, value); toast('Ajuste guardado') } catch (e) { toast(describeDbError(e), 'danger') }
+    try {
+      await setSetting(db, key, value)
+      if (key === 'currency') await logActivity(db, { type: 'settings.currency', title: value })
+      if (key === 'splash') { try { localStorage.setItem('odissey.splash', value ? '1' : '0') } catch { /* opcional */ } }
+      toast('Ajuste guardado')
+    } catch (e) { toast(describeDbError(e), 'danger') }
   }
   return (
     <Panel>
@@ -53,6 +62,10 @@ function PreferencesPanel() {
           />
         </Field>
       </div>
+      <label className="mt-5 flex items-center gap-2 text-sm text-fg">
+        <input type="checkbox" checked={settings.splash !== false} onChange={(e) => save('splash', e.target.checked)} />
+        Mostrar la pantalla de presentación al abrir cada sesión
+      </label>
     </Panel>
   )
 }
@@ -65,7 +78,7 @@ function StoragePanel() {
   return (
     <Panel>
       <div className="flex items-center gap-3">
-        <HardDrive className="size-5 text-gold" aria-hidden />
+        <HardDrive className="size-5 text-primary" aria-hidden />
         <h2 className="font-display text-2xl">Almacenamiento local</h2>
       </div>
       {status?.usage != null && (
@@ -74,8 +87,8 @@ function StoragePanel() {
             <span>{formatBytes(status.usage)} usados</span>
             <span>{formatBytes(status.quota)} disponibles para este sitio</span>
           </div>
-          <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-white/5">
-            <div className={`h-full rounded-full ${status.low ? 'bg-warn' : 'bg-gold'}`} style={{ width: `${Math.max(1, ratio * 100)}%` }} />
+          <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-fg/5">
+            <div className={`h-full rounded-full ${status.low ? 'bg-warn' : 'bg-primary'}`} style={{ width: `${Math.max(1, ratio * 100)}%` }} />
           </div>
           {status.low && <Notice tone="warn" className="mt-4">Queda poco espacio. Exporta una copia de seguridad y elimina archivos que no necesites.</Notice>}
         </div>
@@ -170,7 +183,7 @@ function BackupPanel() {
   return (
     <Panel>
       <div className="flex items-center gap-3">
-        <Download className="size-5 text-gold" aria-hidden />
+        <Download className="size-5 text-primary" aria-hidden />
         <h2 className="font-display text-2xl">Copias de seguridad</h2>
       </div>
       <p className="mt-3 max-w-2xl text-sm text-muted">
@@ -208,12 +221,12 @@ function BackupPanel() {
               Todas las sumas de verificación coinciden.
             </Notice>
             <ul className="grid grid-cols-2 gap-2 text-muted sm:grid-cols-3">
-              <li>Activos: <strong className="text-text">{pending.parsed.tables.items.length}</strong></li>
-              <li>Archivos: <strong className="text-text">{pending.parsed.tables.media.length}</strong></li>
-              <li>Composiciones: <strong className="text-text">{pending.parsed.tables.compositions.length}</strong></li>
-              <li>Fuentes de ingreso: <strong className="text-text">{pending.parsed.tables.incomeSources.length}</strong></li>
-              <li>Ingresos: <strong className="text-text">{pending.parsed.tables.incomeEntries.length}</strong></li>
-              <li>Tamaño: <strong className="text-text">{formatBytes(pending.parsed.totalBytes)}</strong></li>
+              <li>Activos: <strong className="text-fg">{pending.parsed.tables.items.length}</strong></li>
+              <li>Archivos: <strong className="text-fg">{pending.parsed.tables.media.length}</strong></li>
+              <li>Composiciones: <strong className="text-fg">{pending.parsed.tables.compositions.length}</strong></li>
+              <li>Fuentes de ingreso: <strong className="text-fg">{pending.parsed.tables.incomeSources.length}</strong></li>
+              <li>Ingresos: <strong className="text-fg">{pending.parsed.tables.incomeEntries.length}</strong></li>
+              <li>Tamaño: <strong className="text-fg">{formatBytes(pending.parsed.totalBytes)}</strong></li>
             </ul>
             {pending.parsed.warnings.map((w) => <Notice key={w} tone="warn">{w}</Notice>)}
             {pending.room === false && <Notice tone="danger">Puede que no haya espacio suficiente para restaurar este respaldo.</Notice>}
@@ -258,7 +271,7 @@ function IntegrityPanel() {
   return (
     <Panel>
       <div className="flex items-center gap-3">
-        <ShieldCheck className="size-5 text-gold" aria-hidden />
+        <ShieldCheck className="size-5 text-primary" aria-hidden />
         <h2 className="font-display text-2xl">Integridad de los datos</h2>
       </div>
       <p className="mt-3 text-sm text-muted">
@@ -277,7 +290,7 @@ function IntegrityPanel() {
             <Notice tone="ok">Sin incidencias. {report.counts.items} activos y {report.counts.media} archivos comprobados.</Notice>
           ) : (
             <ul className="space-y-1 text-sm text-muted">
-              {grouped.map(([type, n]) => <li key={type}>{ISSUE_LABELS[type] ?? type}: <strong className="text-text">{n}</strong></li>)}
+              {grouped.map(([type, n]) => <li key={type}>{ISSUE_LABELS[type] ?? type}: <strong className="text-fg">{n}</strong></li>)}
             </ul>
           )}
         </div>
@@ -286,17 +299,27 @@ function IntegrityPanel() {
   )
 }
 
+const TABS = [
+  { value: 'general', label: 'General', icon: SlidersHorizontal },
+  { value: 'apariencia', label: 'Apariencia', icon: Palette },
+  { value: 'datos', label: 'Datos y respaldos', icon: Database },
+  { value: 'papelera', label: 'Papelera', icon: Trash2 },
+]
+
 export default function SettingsPage() {
+  const [params, setParams] = useSearchParams()
+  const tab = TABS.some((t) => t.value === params.get('tab')) ? params.get('tab') : 'general'
   return (
     <>
-      <PageHeader eyebrow="Configuración" title="Ajustes">
-        Preferencias, almacenamiento local, copias de seguridad e integridad de tus datos.
+      <PageHeader eyebrow="Configuración" title="Configuración">
+        Preferencias, apariencia, copias de seguridad, almacenamiento local y papelera.
       </PageHeader>
-      <div className="grid gap-6">
-        <BackupPanel />
-        <StoragePanel />
-        <PreferencesPanel />
-        <IntegrityPanel />
+      <Tabs className="mb-6 w-fit max-w-full" value={tab} onChange={(v) => setParams({ tab: v }, { replace: true })} tabs={TABS} />
+      <div key={tab} className="animate-page grid gap-6">
+        {tab === 'general' && <><PreferencesPanel /><IntegrityPanel /></>}
+        {tab === 'apariencia' && <AppearanceEditor />}
+        {tab === 'datos' && <><BackupPanel /><StoragePanel /></>}
+        {tab === 'papelera' && <TrashPanel />}
       </div>
     </>
   )

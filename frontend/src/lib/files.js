@@ -62,6 +62,24 @@ export async function inspectImage(file, { maxBytes = 40 * 1024 * 1024 } = {}) {
 }
 
 /**
+ * Valida un modelo 3D. En esta versión se admite GLB (glTF 2.0 binario, autocontenido).
+ * GLTF con archivos externos, OBJ y STL quedan pendientes.
+ */
+export async function inspectModel(file, { maxBytes = 200 * 1024 * 1024 } = {}) {
+  const name = file.name || 'modelo'
+  if (!file.size) throw new FileValidationError(`"${name}" está vacío`, name)
+  if (file.size > maxBytes) {
+    throw new FileValidationError(`"${name}" supera el límite de ${(maxBytes / 1048576).toFixed(0)} MB para modelos 3D`, name)
+  }
+  const bytes = new Uint8Array(await file.arrayBuffer())
+  const type = sniffType(bytes)
+  if (type?.category !== 'model') throw new FileValidationError(`"${name}" no es un modelo GLB válido. Exporta el modelo como .glb (glTF 2.0 binario).`, name)
+  const version = new DataView(bytes.buffer, bytes.byteOffset).getUint32(4, true)
+  if (version !== 2) throw new FileValidationError(`"${name}" usa glTF ${version}; solo se admite glTF 2.0`, name)
+  return { bytes, mime: type.mime, ext: type.ext, sha256: await sha256Hex(bytes), size: bytes.byteLength }
+}
+
+/**
  * Genera una miniatura para previsualización. El original nunca se modifica.
  * Devuelve null si el entorno no puede decodificar la imagen (la UI usa entonces el original).
  */
