@@ -1,0 +1,16 @@
+node_modules/
+dist/
+coverage/
+.vite/
+*.log
+backend/.venv/
+backend/**/__pycache__/
+backend/.pytest_cache/
+backend/workdir/
+.env
+.env.*
+.DS_Store
+Thumbs.db
+frontend/test-results/
+frontend/playwright-report/
+frontend/e2e/screenshots/

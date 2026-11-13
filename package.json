@@ -1,0 +1,27 @@
+{
+  "name": "vestire-odissey",
+  "private": true,
+  "version": "0.2.0",
+  "description": "Plataforma local de patrimonio personal: vestimenta, colecciones, propiedades, empresas y fuentes de ingreso.",
+  "workspaces": [
+    "frontend"
+  ],
+  "scripts": {
+    "setup": "npm install && node scripts/setup-backend.mjs",
+    "dev:all": "concurrently --names WEB,API --prefix-colors cyan,magenta --kill-others-on-fail \"npm:dev:web\" \"npm:dev:api\"",
+    "dev:web": "npm run dev --workspace frontend",
+    "dev:api": "node scripts/dev-api.mjs",
+    "test": "npm run test --workspace frontend && node scripts/test-backend.mjs",
+    "test:web": "npm run test --workspace frontend",
+    "build": "npm run build --workspace frontend",
+    "preview": "npm run preview --workspace frontend",
+    "test:e2e": "npm run test:e2e --workspace frontend",
+    "setup:e2e": "npx --workspace frontend playwright install chromium"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "devDependencies": {
+    "concurrently": "^10.0.7"
+  }
+}

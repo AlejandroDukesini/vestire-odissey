@@ -1,0 +1,243 @@
+===============================================================================
+ ODISSEY · PLATAFORMA DE PATRIMONIO PERSONAL
+ Documentación técnica del proyecto
+ Versión del documento: 0.2.0 (Fase 2 completada)
+===============================================================================
+
+1. ESTADO DEL PROYECTO
+-------------------------------------------------------------------------------
+Leyenda:
+  [OK]   Implementado y probado
+  [PAR]  Implementado parcialmente
+  [PEN]  Pendiente de integración
+  [NV]   No viable con la arquitectura actual
+
+  Fase 1 · Auditoría y arquitectura .......................... [OK]
+  Fase 2 · Persistencia (IndexedDB + Dexie, respaldo) ........ [OK]
+  Fase 3 · Módulos CRUD ...................................... [PEN]
+  Fase 4 · Experiencias visuales ............................. [PEN]
+  Fase 5 · Visualización 3D y fotogrametría .................. [PEN]
+  Fase 6 · Dashboard y analítica ............................. [PEN]
+  Fase 7 · Pruebas finales, seguridad y documentación ........ [PEN]
+
+  Detalle de la Fase 2:
+  [OK]  Esquema Dexie versionado con reglas de migración no destructivas
+  [OK]  Modelo de datos para todas las categorías (validación por tipo)
+  [OK]  Almacenamiento de fotografías originales como Blob + miniaturas
+  [OK]  Validación de imágenes por contenido real (bytes mágicos) y tamaño
+  [OK]  Detección de fotos duplicadas (sha256)
+  [OK]  Exportación completa a ZIP (registros + binarios + checksums)
+  [OK]  Importación con validación, modo combinar y modo reemplazar atómico
+  [OK]  Comprobación de integridad (solo informa) y reparaciones seguras
+  [OK]  Aviso de espacio insuficiente y manejo de errores de cuota
+  [OK]  Solicitud de almacenamiento persistente
+  [OK]  Pantalla de Ajustes: moneda principal, límites, respaldo, integridad
+  [OK]  Comando único `npm run dev:all`
+
+2. FASE 1 · DIAGNÓSTICO INICIAL DEL REPOSITORIO
+-------------------------------------------------------------------------------
+  - El repositorio solo contenía README.md, codificado en UTF-16 LE con BOM
+    (Git lo trataba como binario). Se convirtió a UTF-8.
+  - No había código, dependencias, Prisma, backend ni almacenamiento. Por tanto
+    no existían datos de usuario que migrar ni riesgo de pérdida previo.
+  - Entorno de desarrollo auditado: Node 24, npm 12, Python 3.13, sin GPU
+    NVIDIA, 12 GB de RAM. Esto condiciona la fotogrametría (ver sección 9).
+
+3. TECNOLOGÍAS
+-------------------------------------------------------------------------------
+  Frontend:  React 19, Vite 8, JavaScript, Tailwind CSS 4, React Router 8
+  Datos:     IndexedDB mediante Dexie 4 y dexie-react-hooks (consultas reactivas)
+  Respaldo:  fflate (ZIP en el navegador, sin servidor)
+  Iconos:    lucide-react
+  Tipografía: Inter y Cormorant Garamond servidas localmente (@fontsource),
+             sin peticiones a Google Fonts
+  Pruebas:   Vitest + fake-indexeddb (unitarias e integración),
+             Playwright + Chromium (navegador real)
+  Ejecución: concurrently (frontend + backend en un solo comando)
+  Previsto:  React Three Fiber (3D, Fase 5), Recharts (dashboard, Fase 6),
+             FastAPI en Python (recorte de fondo y fotogrametría, Fases 4-5)
+
+  Motivo de no usar Prisma: Prisma es un ORM para bases de datos de servidor y
+  no puede usar IndexedDB. El repositorio no lo usaba, así que no hubo transición.
+
+4. ESTRUCTURA DE CARPETAS
+-------------------------------------------------------------------------------
+  package.json                 Scripts raíz (setup, dev:all, test, build)
+  scripts/                     Arranque y prueba del backend Python (si existe)
+  frontend/
+    index.html, vite.config.js, playwright.config.js
+    src/
+      app/                     App, enrutado, navegación y layout
+      components/ui.jsx        Botones, paneles, diálogos, avisos, confirmaciones
+      db/
+        schema.js              Versiones del esquema y creación de la base de datos
+        index.js               Instancia única y arranque seguro
+        items.js               Activos (crear, editar, eliminar, listar)
+        media.js               Fotografías y archivos (Blob, miniaturas, principal)
+        backup.js              Exportación e importación de respaldos
+        integrity.js           Comprobación de integridad y reparaciones seguras
+        storage.js             Cuota, persistencia y espacio disponible
+        settings.js            Ajustes y metadatos internos
+        errors.js              Errores de dominio y de cuota
+      domain/kinds.js          Catálogo de categorías, campos y validación
+      features/                Módulos de interfaz (settings, ...)
+      lib/                     Archivos, formato y descargas
+    tests/                     Pruebas Vitest
+    e2e/                       Pruebas Playwright en navegador real
+  backend/                     (Fases 4-5) FastAPI local
+
+5. MODELO DE ALMACENAMIENTO
+-------------------------------------------------------------------------------
+  Base de datos IndexedDB: "odissey-patrimonio" (esquema versión 1)
+
+  Tabla           Clave / índices                       Contenido
+  items           id, kind, [kind+createdAt], updatedAt  Activos de todas las categorías
+  media           id, ownerId, [ownerId+role], sha256    Metadatos de archivos
+  mediaBlobs      id                                     Binario original (Blob)
+  thumbs          id                                     Miniatura WEBP (<= 560 px)
+  compositions    id, photoMediaId, updatedAt            Composiciones de Previsualización
+  incomeSources   id, category, active                   Fuentes de ingreso
+  incomeEntries   id, sourceId, date, [sourceId+date]    Ingresos esperados/recibidos
+  settings        key                                    Preferencias
+  meta            key                                    Último respaldo, integridad
+
+  Registro de activo (items):
+    { id (UUID), kind, fields{...campos de su categoría}, title, value,
+      currency, primaryMediaId, model3dMediaId, createdAt, updatedAt }
+
+  Categorías (kind): garment, accessory, watch, yacht, car, motorcycle, house,
+  physicalBusiness, digitalBusiness. Cada una define sus propios campos en
+  domain/kinds.js. Ejemplo: las casas no tienen kilometraje. Los yates exigen
+  al menos una fotografía válida para guardarse.
+
+  Los identificadores son UUID aleatorios para que dos dispositivos puedan
+  combinar respaldos sin colisiones.
+
+  Reglas de migración (schema.js):
+    - Solo se añaden versiones nuevas; nunca se modifica una publicada.
+    - Nunca se elimina ni se vacía una tabla en una migración.
+    - Los upgrades solo añaden o completan campos.
+    - Cada versión nueva debe tener prueba (tests/migrations.test.js).
+    - Tras abrir la base de datos se ejecuta una comprobación de integridad
+      en segundo plano. Nunca borra nada; solo informa.
+
+  Protección ante errores:
+    - Escrituras en transacciones: un fallo no deja datos a medias.
+    - Error de cuota → mensaje claro y nada se guarda parcialmente.
+    - La base de datos no se reinicia nunca automáticamente. Si no se puede
+      abrir, se muestra el motivo y no se toca nada.
+    - Si otra pestaña abre una versión más nueva, esta pestaña se desconecta
+      y pide recargar.
+    - Se solicita almacenamiento persistente al navegador.
+
+6. GESTIÓN DE IMÁGENES
+-------------------------------------------------------------------------------
+  - El tipo se valida por el contenido (JPG, PNG, WEBP, GIF, AVIF). Un archivo
+    renombrado se rechaza. HEIC se rechaza con un mensaje que pide convertirlo,
+    porque los navegadores no lo pueden mostrar.
+  - Tamaño máximo configurable en Ajustes (40 MB por defecto).
+  - El original se guarda sin modificar, byte a byte.
+  - Se genera una miniatura WEBP de 560 px como máximo para listados y galerías.
+    Respeta la orientación EXIF.
+  - Duplicados: la misma imagen (sha256) no se guarda dos veces en un activo.
+  - Las URLs de objeto se crean bajo demanda y se liberan al desmontar.
+
+7. COPIAS DE SEGURIDAD
+-------------------------------------------------------------------------------
+  Formato .zip:
+    manifest.json               formato, versión, recuentos, sha256 de cada archivo
+    data/<tabla>.json           registros
+    files/originals/<id>.<ext>  fotografías y modelos originales (sin recomprimir)
+    files/thumbs/<id>.webp      miniaturas
+
+  Importar:
+    1. Se valida el formato, la versión y la suma sha256 de cada archivo.
+       Un respaldo dañado o de una versión más nueva se rechaza sin tocar nada.
+    2. Se muestra un resumen y se comprueba si hay espacio suficiente.
+    3. "Combinar" conserva los datos actuales, añade lo nuevo, actualiza solo
+       registros más recientes y no duplica fotografías.
+    4. "Reemplazar" requiere descargar antes una copia de los datos actuales
+       (o aceptarlo expresamente) y confirmar. Es atómico: si falla, no cambia nada.
+    5. Tras restaurar se ejecuta la comprobación de integridad.
+
+  Limitación conocida: en esta versión el ZIP se construye y se lee en memoria.
+  Con colecciones muy grandes (varios GB) puede ser lento o fallar en equipos
+  con poca RAM. Mejora prevista: lectura y escritura en streaming.
+
+8. EJECUCIÓN CON UN SOLO COMANDO
+-------------------------------------------------------------------------------
+  npm run setup      Instala dependencias (y el backend Python cuando exista)
+  npm run dev:all    Frontend (127.0.0.1:5173) + backend (127.0.0.1:8765)
+  npm test           Pruebas unitarias y de integración
+  npm run test:e2e   Pruebas en navegador real (requiere npm run setup:e2e)
+  npm run build      Compilación de producción
+
+  dev:all usa concurrently con --kill-others-on-fail. Si el backend no está
+  instalado, lo indica y termina con código 0, y el frontend sigue activo.
+  Ctrl+C detiene ambos procesos.
+
+9. RECONSTRUCCIÓN 3D MEDIANTE FOTOGRAFÍAS (planificación, Fase 5)
+-------------------------------------------------------------------------------
+  - Meshroom y la reconstrucción densa de COLMAP requieren GPU NVIDIA (CUDA).
+    El equipo auditado no tiene una.
+  - Opción viable: estructura con COLMAP en CPU + densificación y mallado con
+    OpenMVS en CPU. Es lento (minutos a decenas de minutos).
+  - Para no ralentizar el sistema (decisión del usuario):
+      * nunca se ejecuta automáticamente; la inicia el usuario;
+      * cola de una sola tarea;
+      * prioridad baja del proceso y número de hilos limitado;
+      * se puede cancelar;
+      * por defecto se ofrece la importación de modelos (GLB/GLTF/OBJ/STL) y la
+        validación de fotos.
+  - Las prendas son el caso más difícil (superficies deformables y telas sin
+    textura). La aplicación indicará claramente cuándo la reconstrucción falla
+    y conservará las fotos y la vista 2D. Nunca se presentará una imagen plana
+    como modelo 3D.
+
+10. SEGURIDAD Y PRIVACIDAD
+-------------------------------------------------------------------------------
+  - Ningún dato sale del dispositivo. No hay APIs de terceros ni claves.
+  - Las fuentes tipográficas se sirven localmente (sin Google Fonts).
+  - Vite escucha solo en 127.0.0.1. El backend (cuando exista) también, con
+    CORS restringido al origen del frontend.
+  - Las URLs de negocios digitales se validan (solo http/https).
+  - Los archivos se validan por contenido, no por extensión.
+
+11. PRUEBAS REALIZADAS
+-------------------------------------------------------------------------------
+  Vitest (27 pruebas, IndexedDB en memoria, bases de datos aisladas):
+    - Crear, editar y eliminar cada una de las 9 categorías de activo
+    - Validación: obligatorios, números, selecciones, moneda, URL peligrosa
+    - Yate sin foto válida: no se guarda nada
+    - Fotos: original intacto byte a byte, principal, cambio, eliminación
+    - Duplicados y archivos falsos rechazados; límite de tamaño
+    - Persistencia tras cerrar y reabrir la base de datos
+    - Respaldo ida y vuelta idéntico byte a byte
+    - Combinar: sin duplicados, conserva lo local, actualiza lo más reciente
+    - Combinar con la misma foto con distinto id: se deduplica
+    - Rechazo de ZIP inválido, sin manifest, checksum alterado, versión futura
+    - Reemplazar atómico: un fallo a mitad no altera los datos actuales
+    - Migración aditiva simulada (v1→v2) conserva datos y binarios
+    - Datos de una versión más nueva no se destruyen al abrir con una antigua
+    - Integridad: detecta incidencias sin borrar; reparaciones seguras
+    - Errores de cuota → mensaje comprensible
+
+  Playwright (Chromium real, perfil temporal vacío):
+    - Foto real decodificada → miniatura generada y menor que el original
+    - Los datos y fotos persisten tras recargar la página
+    - Exportar desde Ajustes → importar en otro perfil → datos idénticos,
+      también tras recargar
+    - "Reemplazar" deshabilitado hasta tener copia de los datos actuales
+    - Navegación móvil sin desbordamiento horizontal
+
+  Comprobado manualmente: `npm run dev:all` inicia el frontend y avisa de que
+  no hay backend en esta versión. `npm run build` compila sin errores.
+
+12. LIMITACIONES Y PENDIENTES
+-------------------------------------------------------------------------------
+  - Los módulos de las Fases 3 a 6 muestran una página de "pendiente"; no
+    simulan funcionalidad.
+  - Respaldo en memoria (ver sección 7).
+  - No hay conversión automática entre monedas: los valores se agruparán por
+    moneda en el dashboard (Fase 6).
+  - IndexedDB depende del navegador y del perfil (ver README).
