@@ -146,7 +146,7 @@ test.describe('CRUD completo desde la interfaz', () => {
     await d.getByLabel('Nombre *').fill('Diver')
     await d.getByLabel('Público').selectOption('Unisex')
     await d.getByRole('button', { name: 'Agregar', exact: true }).click()
-    await expect(page.locator('article', { hasText: 'Maison Diver' })).toBeVisible()
+    await expect(page.locator('.cell', { hasText: 'Diver' })).toBeVisible()
 
     await page.goto('/accesorios')
     await page.getByRole('button', { name: 'Agregar accesorio' }).first().click()

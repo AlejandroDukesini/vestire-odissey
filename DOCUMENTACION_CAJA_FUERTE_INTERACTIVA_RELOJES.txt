@@ -1,0 +1,299 @@
+ODISSEY — CAJA FUERTE INTERACTIVA DE RELOJES
+Documentación técnica · 2026-11-15 · rama `desarrollo`
+=====================================================================
+
+1. DIAGNÓSTICO INICIAL (auditoría previa a cualquier cambio)
+---------------------------------------------------------------------
+- Página de relojes: la ruta /relojes usaba el componente genérico
+  frontend/src/features/items/CollectionPage.jsx (cuadrícula de tarjetas ItemCard),
+  el mismo que vestimenta, accesorios, propiedades y empresas.
+- Modelo de datos: tabla `items` de IndexedDB (Dexie, base "odissey-patrimonio",
+  esquema v2). Un reloj es un item con kind "watch". Campos definidos en el catálogo
+  frontend/src/domain/kinds.js: brand*, name, model, color, material, audience,
+  value, acquiredAt, description, notes. NO existían: referencia, movimiento,
+  material de correa, estado de conservación ni precio de compra.
+- Fotografías: tabla `media` (metadatos) + `mediaBlobs` (original) + `thumbs`
+  (miniatura de 560 px). La foto principal es item.primaryMediaId. Hay rol
+  opcional "cutout" (recorte con transparencia).
+- CRUD: db/items.js (createItem, updateItem, trashItem → papelera lógica,
+  restoreItem, purgeItem) con confirmaciones en features/items/useItemActions.jsx
+  y formulario genérico features/items/ItemForm.jsx generado desde el catálogo.
+- Configuración: tabla `settings` clave/valor, con lista blanca SETTING_DEFAULTS
+  en db/settings.js; useSettings() reactivo.
+- Dependencias 3D/animación: three, @react-three/fiber y drei ya instalados (solo
+  se usan en el visor de modelos GLB). No hay GSAP ni Framer Motion. Tailwind 4.
+- Movimiento reducido: theme/apply.js expone prefersReducedMotion(); index.css
+  anula animaciones con data-motion / prefers-reduced-motion.
+
+2. DECISIÓN TECNOLÓGICA
+---------------------------------------------------------------------
+Se eligió CSS 3D Transforms + animaciones CSS orquestadas por un pequeño
+controlador React. No se instaló ninguna dependencia nueva.
+Motivos:
+- La puerta es un sólido real en 3D (perspectiva, preserve-3d, cara frontal,
+  cantos y dorso) que pivota sobre las bisagras: no hace falta WebGL.
+- Las fotografías del usuario se muestran como <img> nítidas (sin texturas).
+- Coste mínimo: solo se animan transform/opacity/filter; la GPU compone.
+- Al no usar WebGL no existe el caso "WebGL no disponible": la escena funciona
+  en cualquier navegador con CSS 3D. Con movimiento reducido la bóveda aparece
+  directamente abierta y estática.
+- Three.js (ya presente) se reservó: cargarlo aquí añadiría ~1 MB sin mejorar
+  la presentación de fotografías planas.
+- Sonido: Web Audio sintetizado (sin archivos).
+
+3. ARQUITECTURA Y ARCHIVOS
+---------------------------------------------------------------------
+Creados (frontend/src/features/vault/):
+  WatchesPage.jsx         Página /relojes. Carga los registros (listItems), la
+                          búsqueda/filtros/orden, el formulario de alta/edición y
+                          el diálogo de personalización. Contiene VaultScene
+                          (distribución, hover/selección, bandejas, panel).
+  WatchVault.jsx          Escenario: sala, cámara (rig), cuerpo con laterales,
+                          bisagras, puerta, indicador, botones Saltar/Repetir.
+                          Mide el ancho disponible (ResizeObserver) y pausa los
+                          giros cuando no está en pantalla (IntersectionObserver).
+  VaultDoor.jsx           Puerta sólida y mecanismo de cada estilo (dial + volante,
+                          teclado + palanca, iris de anillos, llave de latón),
+                          pernos de seguridad y mecanismo del dorso.
+  VaultInterior.jsx       Interior: tira LED, resplandor, oscuridad inicial y
+                          bandeja de compartimentos; navegación con flechas.
+  WatchCompartment.jsx    Compartimento: hueco acolchado, foco propio, enrollador,
+                          placa grabada (marca/nombre). Es un <button> accesible.
+  WatchItem.jsx           Imagen del reloj sobre su cojín con giro propio.
+  WatchDetailPanel.jsx    Panel lateral (escritorio) / hoja (tableta y móvil).
+  VaultStyleSelector.jsx  Selector de estilo, tamaño, intro y sonido; hook
+                          useVaultPrefs() y saveVaultPrefs().
+  useVaultSequence.js     VaultAnimationController: etapas, tiempos, saltar,
+                          repetir, "una vez por sesión", sonido.
+  vaultSound.js           Efectos sonoros sintetizados (dial, teclas, pernos,
+                          puerta, luz).
+  vaultPrefs.js           Estilos, tamaños, opciones de intro, sanitizeVault(),
+                          computeLayout() (distribución) y motionSeed().
+  vault.css               Toda la apariencia y coreografía de la bóveda.
+
+Creados (frontend/src/features/items/):
+  useCollectionQuery.js   Búsqueda, filtros y orden extraídos de CollectionPage
+                          para que la bóveda y la cuadrícula usen la misma lógica.
+  CollectionToolbar.jsx   Barra de búsqueda/orden/filtros compartida.
+
+Modificados:
+  frontend/src/app/App.jsx                       /relojes → WatchesPage.
+  frontend/src/features/items/CollectionPage.jsx usa useCollectionQuery y
+                                                 CollectionToolbar (sin cambio
+                                                 de comportamiento).
+  frontend/src/domain/kinds.js                   Campos nuevos del reloj (ver §8).
+  frontend/src/db/settings.js                    Nueva preferencia `vault`.
+  frontend/src/features/settings/SettingsPage.jsx Configuración → Apariencia →
+                                                 "Bóveda de relojes".
+  frontend/e2e/crud.spec.js                      El reloj creado se busca en su
+                                                 compartimento (.cell).
+Pruebas nuevas:
+  frontend/tests/vault.test.js   (unitarias)
+  frontend/e2e/vault.spec.js     (navegador real)
+
+Separación animación / datos: los componentes de la bóveda reciben registros ya
+filtrados y callbacks; ninguno escribe en IndexedDB salvo VaultStyleSelector
+(solo la clave `vault` de settings). La coreografía vive en vault.css y el
+"cuándo" en useVaultSequence.js.
+
+4. ESTILOS DE CAJA FUERTE
+---------------------------------------------------------------------
+Diseños originales inspirados en la categoría de cajas fuertes residenciales de
+lujo para relojes (puertas pesadas, pernos múltiples, interiores tapizados,
+enrolladores e iluminación interior) y en las referencias aportadas. No se usa
+ninguna marca, logotipo ni diseño de terceros; la placa grabada dice "ODISSEY".
+  A Classic Luxury   Laca negra, filetes dorados, dial de combinación numerado,
+                     volante de tres radios, placa de latón, bisagras doradas,
+                     4 pernos cromados. Ante burdeos, luz cálida.
+  B Modern Vault     Acero grafito cepillado, frente biselado (clip-path),
+                     teclado con pantalla y LED, palanca. Fieltro carbón y LED
+                     frío. Tipografía técnica.
+  C Futuristic Vault Paneles con juntas luminosas, iris de tres anillos que giran
+                     en sentidos opuestos, núcleo rojo → cian, barrido de luz,
+                     pernos luminosos. Cada compartimento enciende su propio
+                     borde de luz en cascada. Sala con retícula.
+  D Luxury Watch     Nogal oscuro con veta, cornisa, puerta de cristal con
+    Cabinet          reflejos, cerradura de llave en latón. Terciopelo marfil.
+                     Los relojes se intuyen tras el cristal desde el inicio y
+                     la revelación es el encendido de los focos.
+Cada estilo se define con variables CSS (--v-*) en .vault-stage[data-style] más
+reglas específicas; añadir un estilo = entrada en VAULT_STYLES + bloque CSS +
+(opcional) cerradura en VaultDoor.jsx.
+
+5. SECUENCIA CINEMATOGRÁFICA (useVaultSequence.js + vault.css)
+---------------------------------------------------------------------
+Etapas ACUMULATIVAS: el escenario recibe las clases v-s1…v-s5 de todas las
+etapas alcanzadas, de modo que cada animación conserva su estado final.
+  0 ms     Presentación   bóveda cerrada, lejos (translateZ -1500px), picada y
+                          girada 14° (se ve el lateral → volumen), penumbra,
+                          viñeta, polvo en el haz de luz. La escena se centra en
+                          pantalla (scrollIntoView) si hace falta.
+  450 ms   Acercamiento   la cámara avanza 1,7 s con aceleración/desaceleración
+                          (cubic-bezier) hasta la cerradura y con un leve
+                          balanceo de marcha (vault-walk): primera persona.
+  2100 ms  Desbloqueo     el mecanismo de cada estilo actúa; los pernos se
+                          retraen escalonados con rebote; el indicador pasa a
+                          verde (estilos B y C).
+  3500 ms  Apertura       la puerta se despega (translateZ), arranca lenta
+                          (peso), gira rotateY(0 → -112°) con transform-origin
+                          en el borde izquierdo (bisagras), rebasa y se asienta
+                          en -110°. La cámara retrocede y gira para encuadrar.
+  4300 ms  Iluminación    tira LED con parpadeo de encendido, resplandor
+                          interior, desaparece la oscuridad, el haz de la sala
+                          se intensifica y los compartimentos aparecen en
+                          cascada (85 ms entre cada uno).
+  5600 ms  Exploración    la cámara termina su recorrido; empiezan los giros de
+                          los relojes y de los enrolladores; interacción activa.
+La puerta NUNCA usa opacidad para "abrirse": la prueba e2e verifica que su
+matriz es 3D, el origen está en 0px (bisagra) y el ángulo supera 95°.
+
+Controles:
+- "Saltar apertura" (o Escape) durante la secuencia: clase v-instant, que pone a
+  0 s la duración de todas las animaciones de secuencia → estado final al
+  instante, sin saltos raros.
+- "Repetir apertura" (esquina superior de la escena) vuelve a cerrar sin animar
+  y reproduce de nuevo.
+- Preferencia "Animación de apertura": cada vez / una vez por sesión
+  (sessionStorage) / nunca.
+- Cambiar de estilo en el selector repite la apertura al cerrar el diálogo.
+- Pasar el cursor, cambiar de reloj, filtrar o cambiar de bandeja NO reinicia
+  la secuencia (verificado en e2e).
+
+Sonido: solo si la preferencia está activa y el navegador lo permite (requiere
+interacción previa del usuario; si no, se omite en silencio). Volumen 0,2.
+
+6. RELOJES DENTRO DE LA CAJA
+---------------------------------------------------------------------
+- Fuente de datos: listItems(db, 'watch') vía useLiveQuery (los mismos registros
+  del CRUD; no existe una colección paralela). Crear, editar, cambiar foto o
+  enviar a la papelera se refleja al momento.
+- Distribución (computeLayout en vaultPrefs.js), según cantidad real y ancho:
+    1 → un compartimento destacado grande; 4 → 2×2; 6 → 3×2; 8 → 4×2;
+    12 → 4×3; más → bandejas (páginas) sin límite de colección.
+  Elige la rejilla más equilibrada (≈4:3) penalizando huecos; la última fila
+  incompleta se centra: nunca hay compartimentos vacíos de relleno. El tamaño
+  del compartimento se limita además por la altura de la ventana.
+- Imagen: miniatura (560 px) con object-fit: contain (sin deformar). Va sobre un
+  cojín claro con mix-blend-mode: multiply y una máscara radial suave: el fondo
+  blanco de estudio se funde con el cojín SIN modificar el archivo. Si existe
+  un recorte (rol "cutout") se usa directamente con sombra.
+- Giro: cada imagen oscila sobre su eje vertical (rotateY ±24°, perspectiva
+  propia) con duración (7–11,5 s) y desfase distintos y estables por reloj
+  (motionSeed). El enrollador gira en Z lentamente. Movimiento moderado y nunca
+  sincronizado.
+- Hover / foco: se pausa el giro, el reloj se acerca (scale 1.08 + translateZ),
+  el compartimento se ilumina y los demás se atenúan; se abre la ficha.
+  Al salir hay 220 ms de gracia para no parpadear al cruzar entre relojes.
+- Teclado: Tab entre compartimentos, flechas para moverse (cambia de bandeja en
+  los bordes), Enter fija la ficha.
+
+7. PANEL LATERAL (WatchDetailPanel.jsx)
+---------------------------------------------------------------------
+- ≥1280 px: columna fija (sticky) a la derecha. Sin reloj activo muestra el
+  "Registro de la bóveda" (nº de relojes, marcas, destacados y valor estimado
+  por moneda). Con hover o selección muestra la ficha.
+- <1280 px (tableta) y móvil: al tocar/pulsar un reloj se abre una hoja lateral
+  (tableta) o inferior (móvil) que no comprime la caja; se cierra con X,
+  Escape o tocando fuera. No depende del hover.
+- Contenido (solo campos con dato, nada inventado): fotografía principal
+  (original), miniaturas de fotografías adicionales (clic = cambiar foto),
+  marca, nombre, modelo y referencia, precio de compra, valor estimado actual,
+  descripción, movimiento, material de caja, material de correa, color, estado,
+  público, fecha de adquisición, observaciones.
+- Cambio de reloj: el contenido se sustituye con un fundido de 280 ms; el panel
+  no se cierra ni reabre.
+- Acciones: Editar (formulario existente), Ficha completa (página de detalle:
+  galería, modelo 3D, relaciones), nº de fotos, Destacar, Mover a la papelera
+  (confirmación existente), anterior/siguiente reloj con posición "n / total".
+
+8. CAMPOS NUEVOS DEL RELOJ (domain/kinds.js)
+---------------------------------------------------------------------
+Añadidos, todos opcionales: reference (Referencia), movement (Tipo de
+movimiento: Automático, Manual, Cuarzo, Solar, Kinético, Spring Drive,
+Inteligente, Otro), strapMaterial (Material de la correa), condition (Estado
+de conservación), purchasePrice (Precio de compra).
+Reetiquetados sin cambiar la clave: material → "Material de la caja";
+value → "Valor estimado actual" (sigue siendo el valor que suma el dashboard).
+Filtros añadidos: movimiento y estado.
+No requiere migración: los campos viven en item.fields; los registros
+existentes conservan todos sus datos y simplemente no muestran lo que no tienen.
+
+9. PERSONALIZACIÓN E INTEGRACIÓN CON INDEXEDDB
+---------------------------------------------------------------------
+- Clave `vault` en la tabla `settings`: { style, size, intro, sound }.
+  Independiente de los relojes; normalizada con sanitizeVault().
+- Se edita desde Relojes → "Personalizar bóveda" o Configuración → Apariencia.
+- Se incluye en las copias de seguridad (la tabla settings ya se exporta).
+- Garantías: no se borró, reinició ni migró nada; no hay versión nueva de
+  esquema; ningún id cambia; las pruebas usan perfiles/bases temporales.
+
+10. OPTIMIZACIONES
+---------------------------------------------------------------------
+- Solo se renderiza la bandeja visible; los giros se pausan fuera de pantalla.
+- Animaciones solo de transform/opacity/filter; will-change solo en cámara y
+  giro de relojes.
+- Miniaturas en la caja; original solo en el panel.
+- Componentes memoizados (WatchCompartment, WatchItem, VaultInterior,
+  VaultDoor) y callbacks estables: el hover solo re-renderiza 2 compartimentos.
+- Limpieza: temporizadores, rAF, nodos de audio, listeners de teclado,
+  ResizeObserver, IntersectionObserver y URLs de objeto se liberan al desmontar.
+- Movimiento reducido (sistema o Ajustes): sin secuencia, sin giros, sin polvo.
+- Ningún paquete nuevo; CSS de la bóveda ≈ 30 KB sin comprimir.
+
+11. PRUEBAS REALIZADAS
+---------------------------------------------------------------------
+Unitarias (npm run test:web): 53/53 correctas, incluidas las nuevas de
+tests/vault.test.js (distribución 1/4/6/8/12/45 relojes, móvil, tamaño,
+preferencias, campos nuevos sin pérdida de datos antiguos).
+E2E (npx playwright test): 15/15 correctas con servidor nuevo. e2e/vault.spec.js
+cubre las 15 pruebas obligatorias:
+  1 apertura automática · 2 repetir · 3 saltar · 4 rotación 3D desde bisagras
+  · 5 luz interior solo tras abrir · 6 alta desde el formulario aparece en la
+  caja · 7 varios relojes y distribución · 8 hover → panel con datos reales
+  · 9 cambio de reloj actualiza panel · 10 edición se refleja · 11 eliminación
+  desaparece (y queda en papelera) · 12 estilo cambia · 13 persiste al cerrar y
+  reabrir · 14 móvil táctil con hoja inferior y bandejas, sin scroll horizontal
+  · 15 sin errores de consola.
+Revisión visual con capturas en 1440×900, 1366×768 y 390×844 de los 4 estilos
+en cada fase (capturas en frontend/e2e/screenshots/boveda-*.png).
+Compilación: vite build correcta.
+
+12. ERRORES ENCONTRADOS Y CORREGIDOS
+---------------------------------------------------------------------
+- Primer plano de la cámara demasiado cerrado (la placa quedaba fuera): se
+  redujo el avance (translateZ 260 → 150/185 px).
+- La escena quedaba por debajo del pliegue al entrar: se centra al empezar.
+- Ancho medido sin padding (contentRect): ahora se usa clientWidth.
+- Barras del mecanismo sobresalían del dorso de la puerta abierta.
+- Vitrina: el cristal mostraba un interior vacío; ahora se ven los relojes en
+  penumbra y la revelación es la luz.
+- En portátiles de 768 px la caja no cabía: tamaño limitado por altura.
+- Fallos intermitentes de crud/visual e2e: causados por un servidor de Vite
+  previo en el puerto 5173 con caché de dependencias desfasada ("Failed to
+  fetch dynamically imported module"). Con un servidor nuevo pasan todas.
+
+13. LIMITACIONES PENDIENTES
+---------------------------------------------------------------------
+- Las fotos con fondo de color (no blanco) se integran con máscara suave, pero
+  su rectángulo puede intuirse; la solución ideal es subir un recorte PNG
+  (rol "cutout"), que la bóveda ya prioriza. La galería aún no ofrece un botón
+  específico para marcar una foto como recorte de reloj.
+- El giro es de la fotografía (2D en perspectiva), no un modelo 3D del reloj.
+  Si un reloj tiene modelo GLB se consulta en su ficha completa.
+- El sonido depende de la política de autoplay del navegador.
+- En móvil la puerta abierta queda mayormente fuera de cuadro (por diseño, para
+  dejar el interior a pantalla completa).
+
+14. EJECUTAR Y MANTENER
+---------------------------------------------------------------------
+  npm run dev:web            servidor de desarrollo (http://localhost:5173/relojes)
+  npm run build              compilación de producción
+  npm run test:web           pruebas unitarias
+  npm run test:e2e           pruebas de navegador (si falla con "Failed to fetch
+                             dynamically imported module", reiniciar Vite con
+                             --force para regenerar la caché)
+Ajustar tiempos: STAGE_TIMES en useVaultSequence.js y las duraciones de vault.css
+(deben mantenerse coherentes). Ajustar distribución: computeLayout() en
+vaultPrefs.js (y su prueba). Nuevos campos del reloj: kinds.js → aparecen solos
+en formulario, filtros y panel (añadir la clave a SPEC_KEYS de
+WatchDetailPanel.jsx para mostrarla en la ficha lateral).

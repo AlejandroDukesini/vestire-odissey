@@ -12,6 +12,7 @@ import { CURRENCIES } from '../../domain/kinds.js'
 import { formatBytes, makeThumbnail } from '../../lib/files.js'
 import { formatDateTime } from '../../lib/format.js'
 import { saveBlob } from '../../lib/download.js'
+import VaultStyleSelector from '../vault/VaultStyleSelector.jsx'
 import { Button, Dialog, Field, Notice, PageHeader, Panel, Tabs, useConfirm, useToast } from '../../components/ui.jsx'
 import { logActivity } from '../../db/activity.js'
 import AppearanceEditor from './AppearanceEditor.jsx'
@@ -317,7 +318,16 @@ export default function SettingsPage() {
       <Tabs className="mb-6 w-fit max-w-full" value={tab} onChange={(v) => setParams({ tab: v }, { replace: true })} tabs={TABS} />
       <div key={tab} className="animate-page grid gap-6">
         {tab === 'general' && <><PreferencesPanel /><IntegrityPanel /></>}
-        {tab === 'apariencia' && <AppearanceEditor />}
+        {tab === 'apariencia' && (
+          <>
+            <AppearanceEditor />
+            <Panel>
+              <p className="eyebrow mb-1">Colección de relojes</p>
+              <h2 className="mb-5 font-display text-2xl">Bóveda de relojes</h2>
+              <VaultStyleSelector />
+            </Panel>
+          </>
+        )}
         {tab === 'datos' && <><BackupPanel /><StoragePanel /></>}
         {tab === 'papelera' && <TrashPanel />}
       </div>

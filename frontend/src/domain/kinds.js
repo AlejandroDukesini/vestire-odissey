@@ -26,6 +26,9 @@ export const ACCESSORY_TYPES = [
   'Gafas', 'Bolso', 'Cartera', 'Joya', 'Collar', 'Pulsera', 'Anillo', 'Sombrero', 'Correa', 'Otro',
 ]
 
+export const WATCH_MOVEMENTS = ['Automático', 'Manual', 'Cuarzo', 'Solar', 'Kinético', 'Spring Drive', 'Inteligente', 'Otro']
+export const WATCH_CONDITIONS = ['Nuevo', 'Como nuevo', 'Excelente', 'Muy bueno', 'Bueno', 'Con signos de uso', 'Para restaurar']
+
 export const KINDS = {
   garment: {
     label: 'Prenda', plural: 'Prendas', group: 'vestimenta', path: '/vestimenta',
@@ -62,11 +65,19 @@ export const KINDS = {
       { ...common.brand, required: true },
       common.name,
       common.model,
-      common.color, common.material,
+      { key: 'reference', label: 'Referencia', type: 'text' },
+      { key: 'movement', label: 'Tipo de movimiento', type: 'select', options: WATCH_MOVEMENTS },
+      // La clave `material` se conserva (registros existentes); en relojes describe la caja.
+      { ...common.material, label: 'Material de la caja' },
+      { key: 'strapMaterial', label: 'Material de la correa', type: 'text' },
+      common.color,
+      { key: 'condition', label: 'Estado de conservación', type: 'select', options: WATCH_CONDITIONS },
       { key: 'audience', label: 'Público', type: 'select', options: ['Hombre', 'Mujer', 'Unisex'] },
-      common.value, common.acquiredAt, common.description, common.notes,
+      { key: 'purchasePrice', label: 'Precio de compra', type: 'money', min: 0 },
+      { ...common.value, label: 'Valor estimado actual' },
+      common.acquiredAt, common.description, common.notes,
     ],
-    filters: ['brand', 'model', 'audience', 'material'],
+    filters: ['brand', 'model', 'movement', 'condition', 'audience', 'material'],
     subtitle: (f) => [f.model, f.material, f.audience].filter(Boolean).join(' · '),
     title: (f) => [f.brand, f.name].filter(Boolean).join(' '),
     supports3d: true, wearable: true,

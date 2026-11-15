@@ -1,0 +1,690 @@
+/* ===========================================================================
+   BÓVEDA DE RELOJES
+   Escena CSS 3D: perspectiva en el escenario, cámara (rig) con preserve-3d, cuerpo con
+   laterales reales y una puerta sólida (frente, cantos y dorso) que pivota en sus bisagras.
+
+   Etapas acumulativas en .vault-stage (ver useVaultSequence.js):
+     .v-s0 presentación · .v-s1 acercamiento · .v-s2 desbloqueo · .v-s3 apertura
+     .v-s4 iluminación · .v-s5 exploración
+   .v-instant  salta al estado final de cada etapa sin animar (saltar / sin intro).
+   .v-still    movimiento reducido: sin giros continuos.
+   Solo se animan transform, opacity y filter, y solo en los elementos marcados .seq.
+   ======================================================================== */
+
+.vault-stage {
+  /* Medidas (coinciden con interiorWidth() de WatchesPage.jsx) */
+  --pad-x: 48px;
+  --frame: 30px;
+  --inner-pad: 18px;
+  --door-t: 18px;
+  --depth: 78px;
+  --radius: 16px;
+
+  /* Materiales (los define cada estilo) */
+  --v-wall: #0b0b0d;
+  --v-wall-2: #16161a;
+  --v-floor: #050506;
+  --v-body: #141416;
+  --v-body-hi: #2a2a2f;
+  --v-side: #0a0a0b;
+  --v-trim: #c9a45c;
+  --v-trim-hi: #f2d896;
+  --v-trim-lo: #7a5c26;
+  --v-door: #0e0e10;
+  --v-door-hi: #2b2b30;
+  --v-inner: #2a1210;
+  --v-inner-2: #170807;
+  --v-pocket: #1d0a09;
+  --v-cushion: #eadfca;
+  --v-light: 255 214 150;
+  --v-plate: #c9a45c;
+  --v-plate-ink: #2b1d07;
+  --v-beam: 255 220 170;
+
+  position: relative;
+  isolation: isolate;
+  display: grid;
+  place-items: center;
+  min-height: 560px;
+  padding: 64px var(--pad-x) 86px;
+  overflow: hidden;
+  border-radius: var(--radius-panel);
+  border: 1px solid color-mix(in oklab, var(--c-text) 8%, transparent);
+  background: var(--v-wall);
+  perspective: 1700px;
+  perspective-origin: 50% 36%;
+  color: #ece8e1;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+@media (max-width: 559px) {
+  .vault-stage { --pad-x: 14px; --frame: 18px; --inner-pad: 10px; --door-t: 12px; --depth: 44px; min-height: 460px; padding-top: 44px; padding-bottom: 64px; perspective: 1100px; }
+}
+
+/* ---------------------------------------------------------------- SALA */
+.vault-room, .vault-room > * { position: absolute; inset: 0; pointer-events: none; }
+.vault-room { z-index: -1; }
+.room-wall {
+  background:
+    radial-gradient(60% 55% at 50% 30%, var(--v-wall-2), transparent 70%),
+    repeating-linear-gradient(90deg, rgb(255 255 255 / 0.012) 0 1px, transparent 1px 120px),
+    var(--v-wall);
+}
+.room-floor {
+  top: auto; height: 34%;
+  background:
+    radial-gradient(55% 70% at 50% 0%, rgb(var(--v-beam) / 0.07), transparent 70%),
+    linear-gradient(to bottom, rgb(0 0 0 / 0.35), var(--v-floor));
+  border-top: 1px solid rgb(255 255 255 / 0.03);
+}
+.room-beam {
+  inset: -10% 18% 20%;
+  background: conic-gradient(from 180deg at 50% 0%, transparent 155deg, rgb(var(--v-beam) / 0.10) 172deg, rgb(var(--v-beam) / 0.16) 180deg, rgb(var(--v-beam) / 0.10) 188deg, transparent 205deg);
+  filter: blur(14px);
+  opacity: 0.35;
+  transition: opacity 1200ms ease;
+}
+.v-s4 .room-beam { opacity: 1; }
+.room-dust i {
+  position: absolute; border-radius: 50%;
+  background: rgb(var(--v-beam) / 0.55);
+  box-shadow: 0 0 6px rgb(var(--v-beam) / 0.6);
+  opacity: 0;
+  animation: dust 10s linear infinite;
+}
+.room-dust { inset: 0 25% 30%; }
+@keyframes dust {
+  0% { transform: translate3d(0, 0, 0); opacity: 0; }
+  20% { opacity: 0.55; }
+  80% { opacity: 0.35; }
+  100% { transform: translate3d(14px, -60px, 0); opacity: 0; }
+}
+.vault-vignette {
+  position: absolute; inset: 0; pointer-events: none; z-index: 3;
+  background: radial-gradient(120% 90% at 50% 45%, transparent 55%, rgb(0 0 0 / 0.65));
+  transition: opacity 1400ms ease;
+}
+.v-s0 .vault-vignette, .vault-stage:not(.v-s4) .vault-vignette { opacity: 1; }
+.v-s4 .vault-vignette { opacity: 0.7; }
+
+/* ---------------------------------------------------------------- CÁMARA
+   Fase 1: lejos, ligeramente picado y girado (se ve el lateral → volumen).
+   Fase 2: avance en primera persona hasta la cerradura (ease-in-out, con paso).
+   Fase 3: retrocede mientras la puerta se abre.  Fase 5: encuadre final. */
+.vault-rig {
+  transform-style: preserve-3d;
+  transform: translate3d(0, 38px, -1500px) rotateX(8deg) rotateY(-14deg);
+  transition: transform 1700ms cubic-bezier(0.55, 0.05, 0.25, 1);
+  will-change: transform;
+}
+.v-s1 .vault-rig { transform: translate3d(0, 10px, 150px) rotateX(1.5deg) rotateY(-2deg); }
+.v-s2 .vault-rig { transform: translate3d(0, 8px, 185px) rotateX(1deg) rotateY(-1deg); transition-duration: 1400ms; transition-timing-function: cubic-bezier(0.3, 0, 0.7, 1); }
+.v-s3 .vault-rig { transform: translate3d(0, 0, -30px) rotateX(1deg) rotateY(5deg); transition-duration: 2300ms; transition-timing-function: cubic-bezier(0.45, 0, 0.2, 1); }
+.v-s5 .vault-rig { transform: translate3d(0, 0, 0) rotateX(0) rotateY(0); transition-duration: 1600ms; transition-timing-function: cubic-bezier(0.22, 1, 0.36, 1); }
+
+/* Balanceo de la marcha durante el acercamiento (sensación de primera persona). */
+.vault-bob { transform-style: preserve-3d; }
+.v-s1 .vault-bob { animation: vault-walk 1700ms ease-in-out both; }
+@keyframes vault-walk {
+  0%, 100% { transform: none; }
+  22% { transform: translate3d(-3px, -6px, 0) rotateZ(0.35deg); }
+  48% { transform: translate3d(0, 0, 0); }
+  72% { transform: translate3d(3px, -5px, 0) rotateZ(-0.3deg); }
+}
+.vault-present { transform-style: preserve-3d; }
+.v-s0 .vault-present { animation: vault-present 900ms ease both; }
+@keyframes vault-present { from { opacity: 0; } to { opacity: 1; } }
+
+/* ---------------------------------------------------------------- CUERPO */
+.vault {
+  position: relative;
+  transform-style: preserve-3d;
+  padding: var(--frame);
+  border-radius: 14px;
+  background:
+    linear-gradient(155deg, rgb(255 255 255 / 0.07), transparent 28%, transparent 70%, rgb(255 255 255 / 0.03)),
+    linear-gradient(180deg, var(--v-body-hi), var(--v-body) 40%, var(--v-body));
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 0.12),
+    inset 0 -2px 0 rgb(0 0 0 / 0.5),
+    inset 0 0 0 1px rgb(255 255 255 / 0.04),
+    0 40px 80px -30px rgb(0 0 0 / 0.9);
+}
+.vault-face { position: absolute; inset: 7px; border-radius: 10px; pointer-events: none; box-shadow: inset 0 0 0 1px rgb(var(--trim-rgb, 201 164 92) / 0.35); }
+.vault-side { position: absolute; pointer-events: none; background: linear-gradient(90deg, var(--v-side), color-mix(in oklab, var(--v-side), #fff 6%)); }
+.vault-side-r { top: 6px; bottom: 6px; right: 0; width: var(--depth); transform-origin: right center; transform: rotateY(-90deg); }
+.vault-side-l { top: 6px; bottom: 6px; left: 0; width: var(--depth); transform-origin: left center; transform: rotateY(90deg); }
+.vault-side-t { left: 6px; right: 6px; top: 0; height: var(--depth); transform-origin: center top; transform: rotateX(-90deg); background: linear-gradient(180deg, color-mix(in oklab, var(--v-side), #fff 10%), var(--v-side)); }
+.vault-shadow {
+  position: absolute; left: 6%; right: 6%; bottom: -34px; height: 46px; border-radius: 50%;
+  background: radial-gradient(closest-side, rgb(0 0 0 / 0.75), transparent);
+  filter: blur(6px);
+  transform: translateZ(-40px);
+}
+
+.vault-hinges { position: absolute; inset: 0; pointer-events: none; transform: translateZ(calc(var(--door-t) + 2px)); }
+.vault-hinges i {
+  position: absolute; left: calc(var(--frame) - 13px); width: 15px; height: 13%; min-height: 34px; max-height: 70px;
+  border-radius: 8px;
+  background: linear-gradient(90deg, var(--v-trim-lo), var(--v-trim-hi) 38%, var(--v-trim) 60%, var(--v-trim-lo));
+  box-shadow: 0 2px 4px rgb(0 0 0 / 0.6), inset 0 1px 0 rgb(255 255 255 / 0.3);
+}
+.vault-hinges i::before, .vault-hinges i::after { content: ''; position: absolute; left: 2px; right: 2px; height: 2px; background: rgb(0 0 0 / 0.35); }
+.vault-hinges i::before { top: 30%; } .vault-hinges i::after { bottom: 30%; }
+.vault-hinges i:nth-child(1) { top: 14%; }
+.vault-hinges i:nth-child(2) { top: calc(50% - 6.5%); }
+.vault-hinges i:nth-child(3) { bottom: 14%; }
+
+.vault-status {
+  position: absolute; top: calc(var(--frame) / 2 - 3px); right: calc(var(--frame) + 8px); width: 6px; height: 6px; border-radius: 50%;
+  background: #ff4d3d; box-shadow: 0 0 8px #ff4d3d;
+  transform: translateZ(1px);
+  transition: background-color 300ms ease, box-shadow 300ms ease;
+}
+.v-s2 .vault-status { animation: status-ok 1ms 900ms forwards; }
+@keyframes status-ok { to { background: #3dff9a; box-shadow: 0 0 10px #3dff9a; } }
+[data-style='classic'] .vault-status, [data-style='cabinet'] .vault-status { display: none; }
+
+/* ---------------------------------------------------------------- INTERIOR */
+.vault-opening {
+  position: relative;
+  padding: var(--inner-pad);
+  border-radius: 8px;
+  min-width: calc(var(--cell) + 2 * var(--inner-pad));
+  background:
+    radial-gradient(90% 60% at 50% 0%, rgb(var(--v-light) / 0.10), transparent 60%),
+    linear-gradient(180deg, var(--v-inner), var(--v-inner-2));
+  box-shadow:
+    inset 0 0 0 2px rgb(0 0 0 / 0.55),
+    inset 0 26px 50px -10px rgb(0 0 0 / 0.85),
+    inset 0 -10px 30px rgb(0 0 0 / 0.55),
+    inset 10px 0 24px -8px rgb(0 0 0 / 0.7),
+    inset -10px 0 24px -8px rgb(0 0 0 / 0.7);
+}
+.vault-led {
+  position: absolute; left: 6%; right: 6%; top: 4px; height: 3px; border-radius: 3px; z-index: 2;
+  background: rgb(var(--v-light));
+  box-shadow: 0 0 12px 2px rgb(var(--v-light) / 0.8), 0 0 40px 6px rgb(var(--v-light) / 0.35);
+  opacity: 0;
+}
+.vault-glow {
+  position: absolute; inset: 0; border-radius: inherit; pointer-events: none; z-index: 1;
+  background: radial-gradient(80% 55% at 50% -5%, rgb(var(--v-light) / 0.22), transparent 70%);
+  opacity: 0;
+}
+.v-s4 .vault-led { animation: led-on 900ms ease forwards; }
+.v-s4 .vault-glow { animation: led-on 1400ms 120ms ease forwards; }
+@keyframes led-on { 0% { opacity: 0; } 12% { opacity: 0.9; } 18% { opacity: 0.2; } 30% { opacity: 1; } 38% { opacity: 0.55; } 100% { opacity: 1; } }
+[data-style='classic'] .vault-led, [data-style='cabinet'] .vault-led { height: 1px; opacity: 0; }
+[data-style='classic'] .v-s4 .vault-led, [data-style='cabinet'].v-s4 .vault-led { animation: fade-in-soft 1200ms ease forwards; }
+@keyframes fade-in-soft { from { opacity: 0; } to { opacity: 0.6; } }
+
+.vault-dark { position: absolute; inset: 0; z-index: 4; border-radius: inherit; background: rgb(0 0 0 / 0.86); pointer-events: none; }
+.v-s4 .vault-dark { animation: dark-off 1100ms ease forwards; }
+@keyframes dark-off { 0% { opacity: 1; } 14% { opacity: 0.55; } 22% { opacity: 0.9; } 100% { opacity: 0; } }
+.vault-stage:not(.v-s4) .vault-opening { pointer-events: none; }
+
+.vault-tray {
+  position: relative; z-index: 3;
+  display: flex; flex-wrap: wrap; justify-content: center;
+  gap: var(--gap);
+  width: calc(var(--cols) * var(--cell) + (var(--cols) - 1) * var(--gap));
+}
+.vault-empty {
+  position: relative; z-index: 3;
+  display: grid; place-items: center;
+  width: min(520px, 70vw); min-height: 300px; padding: 24px;
+  color: color-mix(in oklab, rgb(var(--v-light)), #fff 40%);
+}
+
+/* ---------------------------------------------------------------- COMPARTIMENTO */
+.cell { width: var(--cell); opacity: 0; transform: translateY(18px) scale(0.95); }
+.v-s4 .cell { animation: cell-in 760ms cubic-bezier(0.22, 1, 0.36, 1) forwards; animation-delay: calc(240ms + min(var(--i), 16) * 85ms); }
+.v-instant .cell { animation: none; opacity: 1; transform: none; }
+@keyframes cell-in { to { opacity: 1; transform: none; } }
+
+.cell-btn {
+  position: relative; display: flex; flex-direction: column; width: 100%;
+  border-radius: 12px; padding: 7px 7px 0;
+  background: linear-gradient(180deg, rgb(255 255 255 / 0.04), rgb(0 0 0 / 0.15));
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.06), inset 0 0 0 1px rgb(0 0 0 / 0.4), 0 6px 14px -8px rgb(0 0 0 / 0.8);
+  transition: box-shadow 360ms ease, transform 360ms cubic-bezier(0.22, 1, 0.36, 1);
+  cursor: pointer; text-align: center; color: inherit;
+}
+.cell-btn:focus-visible { outline: 2px solid rgb(var(--v-light)); outline-offset: 3px; }
+.cell-light {
+  position: absolute; inset: -2px; border-radius: 14px; pointer-events: none; z-index: 2;
+  background: radial-gradient(70% 45% at 50% 0%, rgb(var(--v-light) / 0.32), transparent 70%);
+  box-shadow: 0 0 0 1px rgb(var(--v-light) / 0.45), 0 0 28px -4px rgb(var(--v-light) / 0.5);
+  opacity: 0; transition: opacity 360ms ease;
+}
+.cell-pocket {
+  position: relative; display: grid; place-items: center; aspect-ratio: 1; border-radius: 9px; overflow: hidden;
+  background:
+    radial-gradient(70% 55% at 50% 0%, rgb(var(--v-light) / 0.12), transparent 70%),
+    radial-gradient(closest-side, color-mix(in oklab, var(--v-pocket), #fff 6%), var(--v-pocket));
+  box-shadow: inset 0 10px 22px rgb(0 0 0 / 0.75), inset 0 -4px 10px rgb(0 0 0 / 0.5), inset 0 0 0 1px rgb(0 0 0 / 0.5);
+  perspective: 700px;
+}
+/* Textura de ante/fieldro: ruido muy sutil. */
+.cell-pocket::before {
+  content: ''; position: absolute; inset: 0; opacity: 0.18; mix-blend-mode: overlay; pointer-events: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='120' height='120' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+.cell-winder {
+  position: absolute; width: 88%; aspect-ratio: 1; border-radius: 50%; pointer-events: none;
+  background:
+    radial-gradient(closest-side, transparent 86%, rgb(255 255 255 / 0.08) 87%, transparent 91%),
+    repeating-conic-gradient(from 0deg, rgb(var(--v-light) / 0.18) 0 1.2deg, transparent 1.2deg 15deg);
+  -webkit-mask: radial-gradient(closest-side, transparent 88%, #000 89%, #000 99%, transparent 100%);
+          mask: radial-gradient(closest-side, transparent 88%, #000 89%, #000 99%, transparent 100%);
+  opacity: 0.55;
+}
+.v-s5 .cell-winder { animation: winder var(--winder-dur, 20s) linear infinite; }
+@keyframes winder { to { transform: rotate(360deg); } }
+
+.watch-zoom { position: relative; display: grid; place-items: center; width: 80%; aspect-ratio: 1; transform-style: preserve-3d; transition: transform 520ms cubic-bezier(0.22, 1, 0.36, 1); }
+.watch-turn {
+  position: relative; display: grid; place-items: center; width: 100%; height: 100%;
+  border-radius: 50%;
+  transform-style: preserve-3d;
+  will-change: transform;
+}
+.v-s5 .watch-turn { animation: watch-turn var(--turn-dur, 8s) ease-in-out var(--turn-delay, 0s) infinite alternate; }
+@keyframes watch-turn {
+  0% { transform: rotateY(-24deg) rotateX(3deg); }
+  100% { transform: rotateY(24deg) rotateX(-2deg); }
+}
+.watch-cushion {
+  position: absolute; inset: 0; border-radius: 50%;
+  background:
+    radial-gradient(60% 50% at 40% 30%, rgb(255 255 255 / 0.55), transparent 70%),
+    radial-gradient(closest-side, var(--v-cushion) 70%, color-mix(in oklab, var(--v-cushion), #000 22%) 100%);
+  box-shadow: 0 14px 22px -10px rgb(0 0 0 / 0.85), inset 0 -6px 12px rgb(0 0 0 / 0.18);
+}
+.watch-img {
+  position: relative; width: 86%; height: 86%; object-fit: contain;
+  mix-blend-mode: multiply;
+  -webkit-mask-image: radial-gradient(closest-side, #000 72%, transparent 100%);
+          mask-image: radial-gradient(closest-side, #000 72%, transparent 100%);
+  animation: fade 500ms ease both;
+  backface-visibility: hidden;
+}
+.watch-img.is-cutout { mix-blend-mode: normal; -webkit-mask-image: none; mask-image: none; filter: drop-shadow(0 8px 10px rgb(0 0 0 / 0.45)); }
+.watch-loading { position: absolute; inset: 22%; border-radius: 50%; background: rgb(0 0 0 / 0.08); animation: fade 1s ease infinite alternate; }
+.watch-missing { position: relative; display: flex; flex-direction: column; align-items: center; gap: 4px; font-size: 10px; color: rgb(0 0 0 / 0.45); }
+
+.cell-star { position: absolute; top: 7px; right: 7px; z-index: 3; display: grid; place-items: center; width: 20px; height: 20px; border-radius: 50%; background: var(--v-trim); color: var(--v-plate-ink); box-shadow: 0 2px 6px rgb(0 0 0 / 0.5); }
+
+.cell-plate {
+  position: relative; display: flex; flex-direction: column; justify-content: center; gap: 1px;
+  min-height: 42px; margin: 7px 10% 8px; padding: 4px 8px; border-radius: 4px;
+  background: linear-gradient(180deg, color-mix(in oklab, var(--v-plate), #fff 22%), var(--v-plate) 55%, color-mix(in oklab, var(--v-plate), #000 25%));
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.35), 0 2px 4px rgb(0 0 0 / 0.6);
+  color: var(--v-plate-ink); line-height: 1.15;
+}
+.cell-plate b { font-family: var(--font-display); font-size: 14px; font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cell-plate span { font-size: 10px; letter-spacing: 0.06em; opacity: 0.8; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* Hover / selección: el reloj se detiene, se acerca y su compartimento se ilumina. */
+.cell-btn:hover, .cell.is-active .cell-btn { transform: translateY(-2px); }
+.cell-btn:hover .cell-light, .cell.is-active .cell-light { opacity: 1; }
+.cell-btn:hover .watch-zoom, .cell.is-active .watch-zoom { transform: scale(1.08) translateZ(20px); }
+.cell-btn:hover .watch-turn, .cell.is-active .watch-turn,
+.cell-btn:hover .cell-winder, .cell.is-active .cell-winder { animation-play-state: paused; }
+.vault-stage:has(.cell.is-active) .cell:not(.is-active) .cell-pocket { filter: brightness(0.82); }
+.cell-pocket { transition: filter 400ms ease; }
+
+/* ---------------------------------------------------------------- PUERTA */
+.vault-door {
+  position: absolute;
+  inset: calc(var(--frame) - 6px);
+  transform-origin: left center;
+  transform-style: preserve-3d;
+  transform: translateZ(calc(var(--door-t) / 2 + 1px));
+  z-index: 5;
+  pointer-events: none;
+}
+.v-s3 .vault-door { animation: door-open 2500ms forwards; }
+@keyframes door-open {
+  0% { transform: translateZ(calc(var(--door-t) / 2 + 1px)) rotateY(0); animation-timing-function: cubic-bezier(0.3, 0, 0.6, 1); }
+  9% { transform: translateZ(calc(var(--door-t) / 2 + 9px)) rotateY(0); animation-timing-function: cubic-bezier(0.6, 0, 0.8, 0.6); }
+  22% { transform: translateZ(calc(var(--door-t) / 2 + 10px)) rotateY(-7deg); animation-timing-function: cubic-bezier(0.25, 0.4, 0.3, 1); }
+  86% { transform: translateZ(calc(var(--door-t) / 2 + 10px)) rotateY(-109deg); animation-timing-function: ease-in-out; }
+  94% { transform: translateZ(calc(var(--door-t) / 2 + 10px)) rotateY(-112deg); animation-timing-function: ease-in-out; }
+  100% { transform: translateZ(calc(var(--door-t) / 2 + 10px)) rotateY(-110deg); }
+}
+.door-face, .door-edge { position: absolute; backface-visibility: hidden; -webkit-backface-visibility: hidden; }
+.door-face { inset: 0; border-radius: 10px; }
+.door-front {
+  transform: translateZ(calc(var(--door-t) / 2));
+  display: grid; place-items: center;
+  background:
+    linear-gradient(115deg, rgb(255 255 255 / 0.10), transparent 22%, transparent 62%, rgb(255 255 255 / 0.05) 70%, transparent 78%),
+    linear-gradient(180deg, var(--v-door-hi), var(--v-door) 45%, var(--v-door));
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.18), inset 0 0 0 1px rgb(255 255 255 / 0.05), inset 0 -3px 6px rgb(0 0 0 / 0.5), 0 10px 22px -8px rgb(0 0 0 / 0.9);
+}
+.door-inset { position: absolute; inset: 16px; border-radius: 6px; pointer-events: none; box-shadow: inset 0 0 0 1px var(--v-trim), inset 0 0 0 4px transparent, inset 0 0 0 5px rgb(var(--trim-rgb, 201 164 92) / 0.35); }
+.door-back {
+  transform: rotateY(180deg) translateZ(calc(var(--door-t) / 2));
+  background: linear-gradient(180deg, color-mix(in oklab, var(--v-door), #fff 8%), var(--v-door));
+  box-shadow: inset 0 0 0 1px rgb(255 255 255 / 0.06), inset 0 0 40px rgb(0 0 0 / 0.6);
+}
+.door-edge {
+  background: linear-gradient(90deg, var(--v-side), color-mix(in oklab, var(--v-door-hi), #fff 14%), var(--v-side));
+}
+.door-edge-r { top: 2px; bottom: 2px; right: calc(var(--door-t) / -2); width: var(--door-t); transform: rotateY(90deg); }
+.door-edge-r::before {
+  content: ''; position: absolute; inset: 14% 3px;
+  background: repeating-linear-gradient(180deg, transparent 0 calc(25% - 14px), var(--v-trim-hi) calc(25% - 14px) calc(25% - 2px), transparent calc(25% - 2px) 25%);
+  border-radius: 6px; opacity: 0.8;
+}
+.door-edge-t { left: 2px; right: 2px; top: calc(var(--door-t) / -2); height: var(--door-t); transform: rotateX(90deg); }
+.door-edge-b { left: 2px; right: 2px; bottom: calc(var(--door-t) / -2); height: var(--door-t); transform: rotateX(-90deg); }
+
+/* Mecanismo visible en el dorso de la puerta. */
+.mech { position: absolute; inset: 12%; border-radius: 8px; background: linear-gradient(135deg, rgb(255 255 255 / 0.06), rgb(0 0 0 / 0.25)); box-shadow: inset 0 0 0 1px rgb(255 255 255 / 0.07); }
+.mech-bar { position: absolute; left: 8%; right: 3%; top: var(--y); height: 9px; margin-top: -4.5px; border-radius: 5px; background: linear-gradient(180deg, var(--v-trim-hi), var(--v-trim-lo)); box-shadow: 0 2px 4px rgb(0 0 0 / 0.5); }
+.mech-rod { position: absolute; left: 58%; top: 18%; bottom: 18%; width: 7px; border-radius: 4px; background: linear-gradient(90deg, var(--v-trim-lo), var(--v-trim-hi), var(--v-trim-lo)); }
+.mech-gear { position: absolute; left: calc(58% - 26px); top: calc(50% - 30px); width: 60px; height: 60px; border-radius: 50%;
+  background: radial-gradient(closest-side, var(--v-door) 32%, var(--v-trim) 34%, var(--v-trim-lo) 70%, transparent 72%), repeating-conic-gradient(var(--v-trim) 0 10deg, transparent 10deg 20deg);
+}
+
+/* Pernos de seguridad: asoman del canto de la puerta hacia el marco y se retraen al desbloquear. */
+.door-bolts { position: absolute; top: 12%; bottom: 12%; right: -14px; width: 46px; display: flex; flex-direction: column; justify-content: space-between; pointer-events: none; }
+.bolt-slot { position: relative; height: 18px; }
+.bolt { position: absolute; right: 0; top: 2px; width: 40px; height: 14px; border-radius: 7px;
+  background: linear-gradient(180deg, #f4f5f7, #9ba0a8 45%, #5b6068 55%, #c8ccd2);
+  box-shadow: 0 2px 3px rgb(0 0 0 / 0.55);
+}
+.bolt-housing { position: absolute; left: 0; right: 14px; top: -3px; bottom: -3px; border-radius: 4px;
+  background: linear-gradient(180deg, var(--v-door-hi), var(--v-door));
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.12), inset 0 0 0 1px rgb(0 0 0 / 0.5);
+}
+.v-s2 .bolt { animation: bolt-retract 420ms cubic-bezier(0.6, 0, 0.3, 1) forwards; animation-delay: calc(1000ms + var(--b) * 70ms); }
+@keyframes bolt-retract { 0% { transform: none; } 70% { transform: translateX(-19px); } 100% { transform: translateX(-17px); } }
+
+/* ---------------------------------------------------------------- CERRADURAS */
+.lock { position: relative; z-index: 1; display: flex; flex-direction: column; align-items: center; gap: 18px; transform: scale(var(--lock-scale, 1)); }
+
+/* A · Classic: dial de combinación + volante de tres radios + placa grabada */
+.dial-index { width: 0; height: 0; border-left: 6px solid transparent; border-right: 6px solid transparent; border-top: 9px solid var(--v-trim-hi); margin-bottom: -14px; filter: drop-shadow(0 1px 1px rgb(0 0 0 / 0.6)); }
+.dial-bezel { display: grid; place-items: center; width: 112px; height: 112px; border-radius: 50%;
+  background: conic-gradient(from 210deg, var(--v-trim-lo), var(--v-trim-hi), var(--v-trim), var(--v-trim-lo), var(--v-trim-hi), var(--v-trim-lo));
+  box-shadow: 0 6px 14px rgb(0 0 0 / 0.7), inset 0 0 0 1px rgb(0 0 0 / 0.4);
+}
+.dial { position: relative; display: grid; place-items: center; width: 98px; height: 98px; border-radius: 50%;
+  background: radial-gradient(circle at 35% 30%, #3a3a40, #111114 70%);
+  box-shadow: inset 0 0 0 1px rgb(255 255 255 / 0.08), inset 0 -4px 8px rgb(0 0 0 / 0.7);
+}
+.dial-ticks { position: absolute; inset: 3px; border-radius: 50%;
+  background: repeating-conic-gradient(var(--v-trim-hi) 0 0.8deg, transparent 0.8deg 3.6deg);
+  -webkit-mask: radial-gradient(closest-side, transparent 86%, #000 87%); mask: radial-gradient(closest-side, transparent 86%, #000 87%);
+}
+.dial-numbers i { position: absolute; left: 50%; top: 50%; font: 600 8px/1 var(--font-sans); color: var(--v-trim-hi); font-style: normal; transform: translate(-50%, -50%) rotate(var(--a)) translateY(-34px); }
+.dial-knob { width: 34px; height: 34px; border-radius: 50%; background: radial-gradient(circle at 35% 30%, var(--v-trim-hi), var(--v-trim) 50%, var(--v-trim-lo)); box-shadow: 0 3px 6px rgb(0 0 0 / 0.6); }
+.v-s2 .dial { animation: dial-combo 1150ms cubic-bezier(0.45, 0, 0.3, 1) forwards; }
+@keyframes dial-combo { 0% { transform: rotate(0); } 34% { transform: rotate(-288deg); } 62% { transform: rotate(-126deg); } 88% { transform: rotate(-234deg); } 100% { transform: rotate(-230deg); } }
+
+.wheel { position: relative; width: 96px; height: 96px; }
+.spoke { position: absolute; left: 50%; top: 50%; width: 6px; height: 48px; margin-left: -3px; transform-origin: 50% 0; transform: rotate(var(--a));
+  background: linear-gradient(90deg, var(--v-trim-lo), var(--v-trim-hi), var(--v-trim-lo)); border-radius: 3px; }
+.spoke i { position: absolute; left: 50%; bottom: -8px; width: 16px; height: 16px; margin-left: -8px; border-radius: 50%; background: radial-gradient(circle at 35% 30%, var(--v-trim-hi), var(--v-trim) 55%, var(--v-trim-lo)); box-shadow: 0 2px 4px rgb(0 0 0 / 0.6); }
+.wheel-hub { position: absolute; left: 50%; top: 50%; width: 28px; height: 28px; margin: -14px; border-radius: 50%; background: radial-gradient(circle at 35% 30%, var(--v-trim-hi), var(--v-trim-lo)); box-shadow: 0 3px 8px rgb(0 0 0 / 0.7); }
+.v-s2 .wheel { animation: wheel-turn 650ms cubic-bezier(0.5, 0, 0.2, 1) 1150ms forwards; }
+@keyframes wheel-turn { 0% { transform: rotate(0); } 85% { transform: rotate(98deg); } 100% { transform: rotate(92deg); } }
+
+.plate { display: flex; flex-direction: column; align-items: center; padding: 6px 16px; border-radius: 3px;
+  background: linear-gradient(180deg, var(--v-trim-hi), var(--v-trim) 50%, var(--v-trim-lo));
+  color: var(--v-plate-ink); box-shadow: 0 2px 5px rgb(0 0 0 / 0.6), inset 0 1px 0 rgb(255 255 255 / 0.4);
+}
+.plate b { font: 600 13px/1.1 var(--font-display); letter-spacing: 0.42em; margin-right: -0.42em; }
+.plate small { font-size: 8px; letter-spacing: 0.3em; text-transform: uppercase; opacity: 0.75; }
+
+/* B · Modern: teclado digital + pantalla + palanca */
+.lock-modern { flex-direction: row; gap: 26px; }
+.keypad { position: relative; display: flex; flex-direction: column; gap: 10px; padding: 12px; border-radius: 10px;
+  background: linear-gradient(180deg, #1b1d21, #0c0d0f); box-shadow: inset 0 0 0 1px rgb(255 255 255 / 0.08), 0 6px 16px rgb(0 0 0 / 0.6); }
+.lcd { position: relative; display: grid; place-items: center; height: 30px; border-radius: 5px; background: #06110d; box-shadow: inset 0 0 0 1px rgb(80 255 180 / 0.15), inset 0 2px 6px rgb(0 0 0 / 0.8); overflow: hidden; }
+.lcd-code { display: flex; gap: 8px; }
+.lcd-dot { width: 7px; height: 7px; border-radius: 50%; background: rgb(110 255 200 / 0.12); }
+.v-s2 .lcd-dot { animation: lcd-dot 1ms forwards; animation-delay: calc(80ms + var(--p) * 200ms); }
+@keyframes lcd-dot { to { background: #6effc8; box-shadow: 0 0 6px #6effc8; } }
+.lcd-ok { position: absolute; inset: 0; display: grid; place-items: center; font: 600 10px/1 var(--font-sans); letter-spacing: 0.32em; color: #6effc8; text-shadow: 0 0 8px #6effc8; background: #06110d; opacity: 0; }
+.v-s2 .lcd-ok { animation: fade-in 200ms 920ms forwards; }
+@keyframes fade-in { to { opacity: 1; } }
+.keys { display: grid; grid-template-columns: repeat(3, 26px); gap: 6px; }
+.key { display: grid; place-items: center; height: 22px; border-radius: 5px; font: 500 10px/1 var(--font-sans); font-style: normal; color: #c9ced6;
+  background: linear-gradient(180deg, #2c3036, #1a1c20); box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.1), 0 1px 2px rgb(0 0 0 / 0.6); }
+.v-s2 .key.is-pressed { animation: key-press 260ms ease; animation-delay: calc(var(--p) * 200ms); }
+@keyframes key-press { 40% { transform: scale(0.9); background: #d4f8ff; color: #0b0d10; box-shadow: 0 0 12px rgb(180 240 255 / 0.9); } }
+.led { position: absolute; top: 8px; right: 8px; width: 5px; height: 5px; border-radius: 50%; background: #ff4d3d; box-shadow: 0 0 6px #ff4d3d; }
+.v-s2 .led { animation: status-ok 1ms 900ms forwards; }
+.lever { position: relative; width: 22px; height: 120px; transform-origin: 50% 18px; }
+.lever::before { content: ''; position: absolute; left: -8px; top: 4px; width: 38px; height: 28px; border-radius: 50%; background: radial-gradient(circle at 35% 30%, #eef1f5, #8b9097 60%, #4a4e55); box-shadow: 0 3px 8px rgb(0 0 0 / 0.7); }
+.lever i { position: absolute; left: 4px; top: 18px; width: 14px; height: 102px; border-radius: 7px; background: linear-gradient(90deg, #6f747c, #f2f4f7 40%, #9aa0a8 65%, #555a61); box-shadow: 4px 4px 10px rgb(0 0 0 / 0.6); }
+.v-s2 .lever { animation: lever-turn 620ms cubic-bezier(0.5, 0, 0.2, 1) 1050ms forwards; }
+@keyframes lever-turn { 0% { transform: rotate(0); } 85% { transform: rotate(-96deg); } 100% { transform: rotate(-90deg); } }
+
+/* C · Futuristic: iris de anillos concéntricos + escaneo */
+.lock-future { gap: 16px; }
+.iris { position: relative; display: grid; place-items: center; width: 150px; height: 150px; }
+.ring { position: absolute; border-radius: 50%; }
+.ring-a { inset: 0; background: repeating-conic-gradient(rgb(71 227 255 / 0.85) 0 22deg, transparent 22deg 30deg);
+  -webkit-mask: radial-gradient(closest-side, transparent 88%, #000 89%, #000 100%); mask: radial-gradient(closest-side, transparent 88%, #000 89%, #000 100%); opacity: 0.55; }
+.ring-b { inset: 16px; background: conic-gradient(from 0deg, transparent 0 40deg, rgb(71 227 255 / 0.9) 40deg 130deg, transparent 130deg 220deg, rgb(71 227 255 / 0.9) 220deg 310deg, transparent 310deg);
+  -webkit-mask: radial-gradient(closest-side, transparent 80%, #000 81%, #000 100%); mask: radial-gradient(closest-side, transparent 80%, #000 81%, #000 100%); opacity: 0.7; }
+.ring-c { inset: 36px; background: repeating-conic-gradient(rgb(255 255 255 / 0.5) 0 2deg, transparent 2deg 12deg);
+  -webkit-mask: radial-gradient(closest-side, transparent 76%, #000 77%, #000 100%); mask: radial-gradient(closest-side, transparent 76%, #000 77%, #000 100%); opacity: 0.45; }
+.iris-core { width: 48px; height: 48px; border-radius: 50%; background: radial-gradient(circle, #ff8a7a, #ff3d2e 45%, #4a0c08 80%); box-shadow: 0 0 22px rgb(255 61 46 / 0.7), inset 0 0 8px rgb(0 0 0 / 0.5); }
+.v-s2 .ring-a { animation: spin-a 1300ms cubic-bezier(0.5, 0, 0.2, 1) forwards; }
+.v-s2 .ring-b { animation: spin-b 1300ms cubic-bezier(0.5, 0, 0.2, 1) forwards; }
+.v-s2 .ring-c { animation: spin-a 1300ms cubic-bezier(0.5, 0, 0.2, 1) 150ms forwards; }
+.v-s2 .iris-core { animation: core-ok 400ms ease 850ms forwards; }
+@keyframes spin-a { to { transform: rotate(240deg); } }
+@keyframes spin-b { to { transform: rotate(-200deg); } }
+@keyframes core-ok { to { background: radial-gradient(circle, #d8fbff, #47e3ff 45%, #06323d 80%); box-shadow: 0 0 30px rgb(71 227 255 / 0.9), inset 0 0 8px rgb(0 0 0 / 0.4); } }
+.future-label { position: relative; height: 12px; width: 180px; font: 600 9px/12px var(--font-sans); letter-spacing: 0.4em; text-align: center; color: rgb(71 227 255 / 0.85); }
+.future-label i { position: absolute; inset: 0; font-style: normal; }
+.future-label .ok-text { opacity: 0; }
+.v-s2 .future-label .scan-text { animation: blink 300ms steps(2) 3, fade-out 1ms 900ms forwards; }
+.v-s2 .future-label .ok-text { animation: fade-in 200ms 900ms forwards; }
+@keyframes blink { 50% { opacity: 0.2; } }
+@keyframes fade-out { to { opacity: 0; } }
+.door-seams { position: absolute; inset: 0; overflow: hidden; border-radius: inherit; pointer-events: none; }
+.door-seams i { position: absolute; background: rgb(71 227 255 / 0.18); box-shadow: 0 0 8px rgb(71 227 255 / 0.25); }
+.door-seams i:nth-child(1) { left: 0; right: 0; top: 33%; height: 1px; }
+.door-seams i:nth-child(2) { left: 0; right: 0; top: 67%; height: 1px; }
+.door-seams i:nth-child(3) { top: 0; bottom: 0; left: 50%; width: 1px; }
+.sweep { position: absolute; top: 0; bottom: 0; left: -30%; width: 30%; background: linear-gradient(90deg, transparent, rgb(71 227 255 / 0.35), transparent); opacity: 0; }
+.v-s2 .sweep { animation: sweep 900ms ease-in-out 250ms; }
+@keyframes sweep { 0% { opacity: 1; transform: translateX(0); } 100% { opacity: 1; transform: translateX(440%); } }
+
+/* D · Cabinet: escudo de latón con llave */
+.escutcheon { position: relative; display: grid; place-items: center; width: 34px; height: 64px; border-radius: 17px;
+  background: linear-gradient(180deg, var(--v-trim-hi), var(--v-trim) 50%, var(--v-trim-lo)); box-shadow: 0 3px 8px rgb(0 0 0 / 0.6), inset 0 1px 0 rgb(255 255 255 / 0.4); }
+.keyhole { width: 8px; height: 18px; border-radius: 4px 4px 2px 2px; background: #140b05; }
+.lock-cabinet .key { position: absolute; left: 50%; top: 50%; width: 0; height: 0; transform-origin: 0 0; }
+.key-shaft { position: absolute; left: -2px; top: -2px; width: 4px; height: 4px; background: var(--v-trim-hi); }
+.key-bow { position: absolute; left: -14px; top: -34px; width: 28px; height: 28px; border-radius: 50%; border: 5px solid var(--v-trim-hi); box-shadow: 0 3px 6px rgb(0 0 0 / 0.6); }
+.v-s2 .lock-cabinet .key { animation: key-turn 700ms cubic-bezier(0.5, 0, 0.2, 1) 280ms forwards; }
+@keyframes key-turn { 0% { transform: rotate(0); } 80% { transform: rotate(96deg); } 100% { transform: rotate(90deg); } }
+
+/* ---------------------------------------------------------------- ESTILOS
+   A · Classic Luxury */
+.vault-stage[data-style='classic'] {
+  --trim-rgb: 201 164 92;
+}
+/* B · Modern Vault */
+.vault-stage[data-style='modern'] {
+  --v-wall: #0a0c0e; --v-wall-2: #171b20; --v-floor: #040506;
+  --v-body: #1a1d21; --v-body-hi: #34383e; --v-side: #0c0e10;
+  --v-trim: #b9bfc8; --v-trim-hi: #f1f4f8; --v-trim-lo: #5d636b; --trim-rgb: 185 191 200;
+  --v-door: #16181b; --v-door-hi: #3b4047;
+  --v-inner: #1a1c1f; --v-inner-2: #0d0e10; --v-pocket: #121315;
+  --v-cushion: #dfe3e8; --v-light: 226 238 255; --v-plate: #c4cad2; --v-plate-ink: #15181c; --v-beam: 210 228 255;
+}
+.vault-stage[data-style='modern'] .vault,
+.vault-stage[data-style='modern'] .door-front {
+  background:
+    repeating-linear-gradient(90deg, rgb(255 255 255 / 0.022) 0 1px, transparent 1px 3px),
+    linear-gradient(115deg, rgb(255 255 255 / 0.09), transparent 25%, transparent 65%, rgb(255 255 255 / 0.05)),
+    linear-gradient(180deg, var(--v-body-hi), var(--v-body) 45%);
+}
+.vault-stage[data-style='modern'] .vault, .vault-stage[data-style='modern'] .door-face { border-radius: 4px; }
+.vault-stage[data-style='modern'] .door-inset { inset: 22px; border-radius: 2px; box-shadow: inset 0 0 0 1px rgb(255 255 255 / 0.1), inset 0 0 0 2px rgb(0 0 0 / 0.4); }
+.vault-stage[data-style='modern'] .door-front { clip-path: polygon(14px 0, calc(100% - 14px) 0, 100% 14px, 100% calc(100% - 14px), calc(100% - 14px) 100%, 14px 100%, 0 calc(100% - 14px), 0 14px); }
+.vault-stage[data-style='modern'] .door-bolts { display: none; }
+.vault-stage[data-style='modern'] .vault-hinges i { width: 10px; border-radius: 2px; left: calc(var(--frame) - 10px); }
+.vault-stage[data-style='modern'] .cell-btn { border-radius: 4px; }
+.vault-stage[data-style='modern'] .cell-pocket { border-radius: 3px; }
+.vault-stage[data-style='modern'] .cell-plate { border-radius: 2px; }
+.vault-stage[data-style='modern'] .cell-plate b { font-family: var(--font-sans); font-size: 10px; letter-spacing: 0.2em; }
+
+/* C · Futuristic Vault */
+.vault-stage[data-style='futuristic'] {
+  --v-wall: #04070a; --v-wall-2: #0b1824; --v-floor: #020304;
+  --v-body: #0b1016; --v-body-hi: #1a2632; --v-side: #05080b;
+  --v-trim: #47e3ff; --v-trim-hi: #b5f5ff; --v-trim-lo: #0f5566; --trim-rgb: 71 227 255;
+  --v-door: #0a0f14; --v-door-hi: #1b2834;
+  --v-inner: #060a0e; --v-inner-2: #020406; --v-pocket: #070c11;
+  --v-cushion: #d5dee5; --v-light: 95 231 255; --v-plate: #0f1b24; --v-plate-ink: #8ff0ff; --v-beam: 80 210 255;
+}
+.vault-stage[data-style='futuristic'] .vault { border-radius: 26px; box-shadow: inset 0 0 0 1px rgb(71 227 255 / 0.25), inset 0 1px 0 rgb(255 255 255 / 0.08), 0 0 60px -20px rgb(71 227 255 / 0.35), 0 40px 80px -30px #000; }
+.vault-stage[data-style='futuristic'] .door-face { border-radius: 20px; }
+.vault-stage[data-style='futuristic'] .door-inset { inset: 14px; border-radius: 14px; box-shadow: inset 0 0 0 1px rgb(71 227 255 / 0.35), 0 0 12px rgb(71 227 255 / 0.15); }
+.vault-stage[data-style='futuristic'] .bolt { background: linear-gradient(180deg, #e7fbff, #47e3ff 50%, #0f5566); box-shadow: 0 0 8px rgb(71 227 255 / 0.6); }
+.vault-stage[data-style='futuristic'] .vault-hinges i { border-radius: 3px; background: linear-gradient(90deg, #0f5566, #47e3ff, #0f5566); box-shadow: 0 0 10px rgb(71 227 255 / 0.5); }
+.vault-stage[data-style='futuristic'] .cell-btn { border-radius: 14px; background: linear-gradient(180deg, rgb(71 227 255 / 0.05), rgb(0 0 0 / 0.3)); }
+.vault-stage[data-style='futuristic'] .cell-pocket { border-radius: 12px; }
+.vault-stage[data-style='futuristic'] .cell-pocket::after { content: ''; position: absolute; inset: 0; border-radius: inherit; pointer-events: none; box-shadow: inset 0 0 0 1px rgb(71 227 255 / 0.45), inset 0 0 18px rgb(71 227 255 / 0.18); opacity: 0; }
+.vault-stage[data-style='futuristic'].v-s4 .cell-pocket::after { animation: led-on 900ms ease forwards; animation-delay: calc(400ms + min(var(--i), 16) * 85ms); }
+.vault-stage[data-style='futuristic'] .cell-plate { border-radius: 3px; background: linear-gradient(180deg, #13222d, #0a141b); box-shadow: inset 0 0 0 1px rgb(71 227 255 / 0.35); }
+.vault-stage[data-style='futuristic'] .cell-plate b { font-family: var(--font-sans); font-size: 10px; letter-spacing: 0.24em; text-shadow: 0 0 6px rgb(71 227 255 / 0.6); }
+.vault-stage[data-style='futuristic'] .room-wall {
+  background:
+    radial-gradient(60% 55% at 50% 30%, var(--v-wall-2), transparent 70%),
+    linear-gradient(rgb(71 227 255 / 0.04) 1px, transparent 1px) 0 0 / 48px 48px,
+    linear-gradient(90deg, rgb(71 227 255 / 0.04) 1px, transparent 1px) 0 0 / 48px 48px,
+    var(--v-wall);
+}
+
+/* D · Luxury Watch Cabinet */
+.vault-stage[data-style='cabinet'] {
+  --v-wall: #120b07; --v-wall-2: #2a1a10; --v-floor: #070403;
+  --v-body: #2b180c; --v-body-hi: #4a2c18; --v-side: #1a0e06;
+  --v-trim: #b8894a; --v-trim-hi: #ecc98d; --v-trim-lo: #6b4a1f; --trim-rgb: 184 137 74;
+  --v-door: #2b170b; --v-door-hi: #4b2c17;
+  --v-inner: #d9c8a6; --v-inner-2: #b9a27a; --v-pocket: #cdb994;
+  --v-cushion: #efe4cd; --v-light: 255 226 176; --v-plate: #b8894a; --v-plate-ink: #2a1a08; --v-beam: 255 214 160;
+  --frame: 34px;
+}
+@media (max-width: 559px) { .vault-stage[data-style='cabinet'] { --frame: 20px; } }
+.vault-stage[data-style='cabinet'] .vault {
+  border-radius: 6px;
+  background:
+    repeating-linear-gradient(96deg, rgb(0 0 0 / 0.0) 0 7px, rgb(0 0 0 / 0.16) 7px 9px, rgb(255 255 255 / 0.025) 9px 15px),
+    repeating-linear-gradient(88deg, transparent 0 40px, rgb(0 0 0 / 0.12) 40px 43px),
+    linear-gradient(180deg, var(--v-body-hi), var(--v-body));
+}
+.vault-crown { position: absolute; left: -10px; right: -10px; top: -16px; height: 18px; border-radius: 4px 4px 2px 2px; pointer-events: none;
+  background: linear-gradient(180deg, #5a3620, #2b170b); box-shadow: 0 4px 10px rgb(0 0 0 / 0.6), inset 0 1px 0 rgb(255 255 255 / 0.1); transform: translateZ(10px); }
+.vault-stage[data-style='cabinet'] .vault-face { box-shadow: inset 0 0 0 1px rgb(184 137 74 / 0.4); }
+.vault-stage[data-style='cabinet'] .vault-opening { box-shadow: inset 0 0 0 2px rgb(60 35 15 / 0.6), inset 0 24px 40px -10px rgb(40 20 5 / 0.55), inset 0 -10px 24px rgb(40 20 5 / 0.3); }
+.vault-stage[data-style='cabinet'] .vault-dark { background: rgb(10 5 2 / 0.72); }
+/* En la vitrina los relojes se intuyen tras el cristal desde el principio: la revelación es la luz. */
+.vault-stage[data-style='cabinet'] .cell { opacity: 1; transform: none; }
+.vault-stage[data-style='cabinet'].v-s4 .cell { animation: cell-lit 900ms ease both; animation-delay: calc(200ms + min(var(--i), 16) * 70ms); }
+@keyframes cell-lit { from { filter: brightness(0.55); } to { filter: none; } }
+.vault-stage[data-style='cabinet'] .vault-empty { color: #4a3018; }
+.vault-stage[data-style='cabinet'] .door-face { border-radius: 4px; }
+.vault-stage[data-style='cabinet'] .door-front,
+.vault-stage[data-style='cabinet'] .door-back {
+  background: none;
+  border: 16px solid;
+  border-image: linear-gradient(135deg, #5a3620, #2b170b 35%, #4a2c18 60%, #24130a) 1;
+  box-shadow: 0 10px 22px -8px rgb(0 0 0 / 0.7);
+  place-items: center end;
+  padding-right: 6px;
+}
+.glass { position: absolute; inset: 0; pointer-events: none;
+  background:
+    linear-gradient(112deg, rgb(255 255 255 / 0.16), rgb(255 255 255 / 0.03) 30%, transparent 33%, rgb(255 255 255 / 0.08) 36%, transparent 41%, transparent 70%, rgb(255 255 255 / 0.06) 85%),
+    rgb(30 18 8 / 0.18);
+  box-shadow: inset 0 0 0 1px rgb(255 240 210 / 0.18);
+}
+.vault-stage[data-style='cabinet'] .door-inset { display: none; }
+.vault-stage[data-style='cabinet'] .door-edge { background: linear-gradient(90deg, #24130a, #5a3620, #24130a); }
+.vault-stage[data-style='cabinet'] .door-edge-r::before { display: none; }
+.vault-stage[data-style='cabinet'] .lock { transform: translateX(14px) scale(var(--lock-scale, 1)); }
+.vault-stage[data-style='cabinet'] .cell-btn { border-radius: 6px; background: linear-gradient(180deg, rgb(255 255 255 / 0.25), rgb(120 90 50 / 0.12)); box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.4), 0 6px 12px -8px rgb(60 30 5 / 0.5); }
+.vault-stage[data-style='cabinet'] .cell-pocket { box-shadow: inset 0 8px 16px rgb(80 50 20 / 0.45), inset 0 -3px 8px rgb(80 50 20 / 0.25); }
+.vault-stage[data-style='cabinet'] .cell-winder { display: none; }
+.vault-stage[data-style='cabinet'] .room-wall {
+  background:
+    radial-gradient(55% 55% at 50% 28%, rgb(255 200 140 / 0.10), transparent 70%),
+    repeating-linear-gradient(90deg, rgb(255 255 255 / 0.015) 0 2px, transparent 2px 90px),
+    var(--v-wall);
+}
+
+/* ---------------------------------------------------------------- TAMAÑO */
+.vault-stage[data-size='wide'] .cell-plate b { font-size: 16px; }
+.vault-stage[data-size='wide'] .cell-plate span { font-size: 11px; }
+
+/* ---------------------------------------------------------------- CONTROLES */
+.vault-skip, .vault-replay {
+  position: absolute; right: 16px; bottom: 16px; z-index: 6;
+  display: inline-flex; align-items: center; gap: 6px; height: 32px; padding: 0 14px; border-radius: 999px;
+  font-size: 12px; color: #ece8e1; background: rgb(255 255 255 / 0.08); border: 1px solid rgb(255 255 255 / 0.16);
+  backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
+  animation: fade-in-soft2 400ms ease 600ms both;
+  transition: background-color 200ms ease;
+}
+.vault-replay { top: 14px; bottom: auto; animation-delay: 0ms; color: rgb(236 232 225 / 0.8); }
+.vault-skip:hover, .vault-replay:hover { background: rgb(255 255 255 / 0.16); color: #fff; }
+@keyframes fade-in-soft2 { from { opacity: 0; } to { opacity: 1; } }
+
+/* ---------------------------------------------------------------- INSTANTÁNEO / REPOSO */
+.v-instant .seq, .v-instant .seq *, .v-instant .cell, .v-instant .vault-led, .v-instant .vault-glow, .v-instant .vault-vignette, .v-instant .cell-pocket::after {
+  animation-duration: 0s !important; animation-delay: 0s !important; transition: none !important;
+}
+.v-instant .vault-bob, .v-instant .vault-present { animation: none !important; }
+.v-still .watch-turn, .v-still .cell-winder, .v-still .room-dust i { animation: none !important; }
+.is-offscreen .watch-turn, .is-offscreen .cell-winder, .is-offscreen .room-dust i { animation-play-state: paused !important; }
+
+/* ---------------------------------------------------------------- PANEL LATERAL */
+.wdp {
+  color: var(--c-text);
+  background: color-mix(in oklab, var(--c-surface) 78%, transparent);
+  backdrop-filter: blur(22px) saturate(140%);
+  -webkit-backdrop-filter: blur(22px) saturate(140%);
+  border: 1px solid color-mix(in oklab, var(--c-text) 11%, transparent);
+  box-shadow: inset 0 1px 0 color-mix(in oklab, var(--c-text) 8%, transparent), 0 24px 60px -30px rgb(0 0 0 / 0.7);
+}
+.wdp-side { animation: wdp-in 520ms cubic-bezier(0.22, 1, 0.36, 1) both; max-height: calc(100dvh - 3rem); overflow-y: auto; }
+.wdp-sheet { animation: wdp-up 420ms cubic-bezier(0.22, 1, 0.36, 1) both; background: color-mix(in oklab, var(--c-surface) 92%, transparent); }
+@media (min-width: 640px) { .wdp-sheet { animation-name: wdp-in; } }
+.wdp-swap { animation: wdp-swap 280ms cubic-bezier(0.22, 1, 0.36, 1) both; }
+.wdp-photo { background: radial-gradient(70% 70% at 50% 40%, color-mix(in oklab, var(--c-text) 7%, transparent), transparent 75%); }
+@keyframes wdp-in { from { opacity: 0; transform: translateX(28px); } to { opacity: 1; transform: none; } }
+@keyframes wdp-up { from { transform: translateY(100%); } to { transform: none; } }
+@keyframes wdp-swap { from { opacity: 0; transform: translateX(10px); } to { opacity: 1; transform: none; } }
+
+/* ---------------------------------------------------------------- MINIATURAS DEL SELECTOR */
+.vault-thumb { display: grid; place-items: center; height: 116px; background: var(--v-wall, #0b0b0d); }
+.vault-thumb[data-style='classic'] { --tb: linear-gradient(180deg, #2a2a2f, #121214); --td: linear-gradient(180deg, #2b2b30, #0e0e10); --tt: #c9a45c; background: radial-gradient(60% 80% at 50% 20%, #1d1d22, #0b0b0d); }
+.vault-thumb[data-style='modern'] { --tb: repeating-linear-gradient(90deg, rgb(255 255 255 / 0.03) 0 1px, transparent 1px 3px), linear-gradient(180deg, #34383e, #1a1d21); --td: linear-gradient(180deg, #3b4047, #16181b); --tt: #d4d9e0; background: radial-gradient(60% 80% at 50% 20%, #171b20, #0a0c0e); }
+.vault-thumb[data-style='futuristic'] { --tb: linear-gradient(180deg, #1a2632, #0b1016); --td: linear-gradient(180deg, #1b2834, #0a0f14); --tt: #47e3ff; background: radial-gradient(60% 80% at 50% 20%, #0b1824, #04070a); }
+.vault-thumb[data-style='cabinet'] { --tb: repeating-linear-gradient(96deg, transparent 0 5px, rgb(0 0 0 / 0.18) 5px 6px), linear-gradient(180deg, #4a2c18, #2b180c); --td: linear-gradient(112deg, rgb(255 255 255 / 0.2), rgb(255 255 255 / 0.03) 40%), #d9c8a6; --tt: #ecc98d; background: radial-gradient(60% 80% at 50% 20%, #2a1a10, #120b07); }
+.vt-body { display: grid; place-items: center; width: 78px; height: 88px; padding: 8px; border-radius: 8px; background: var(--tb); box-shadow: 0 10px 20px -8px #000, inset 0 1px 0 rgb(255 255 255 / 0.12); }
+.vt-door { display: grid; place-items: center; width: 100%; height: 100%; border-radius: 5px; background: var(--td); box-shadow: inset 0 0 0 1px var(--tt); }
+.vt-lock { width: 22px; height: 22px; border-radius: 50%; background: radial-gradient(circle, var(--tt) 30%, transparent 34%), conic-gradient(var(--tt), transparent, var(--tt)); opacity: 0.9; }
+.vault-thumb[data-style='modern'] .vt-body, .vault-thumb[data-style='modern'] .vt-door { border-radius: 2px; }
+.vault-thumb[data-style='modern'] .vt-lock { width: 16px; height: 22px; border-radius: 3px; background: repeating-linear-gradient(180deg, var(--tt) 0 3px, transparent 3px 5px); }
+.vault-thumb[data-style='futuristic'] .vt-body { border-radius: 14px; box-shadow: 0 0 18px -4px rgb(71 227 255 / 0.5), inset 0 0 0 1px rgb(71 227 255 / 0.3); }
+.vault-thumb[data-style='futuristic'] .vt-door { border-radius: 10px; }
+.vault-thumb[data-style='futuristic'] .vt-lock { box-shadow: 0 0 12px var(--tt); }
+.vault-thumb[data-style='cabinet'] .vt-body { border-radius: 3px; }
+.vault-thumb[data-style='cabinet'] .vt-door { border-radius: 1px; box-shadow: inset 0 0 0 4px #3a2214; place-items: center end; padding-right: 6px; }
+.vault-thumb[data-style='cabinet'] .vt-lock { width: 5px; height: 12px; border-radius: 3px; background: var(--tt); }

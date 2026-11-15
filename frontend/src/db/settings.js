@@ -7,6 +7,7 @@ export const SETTING_DEFAULTS = {
   reduceMotion: 'system', // system | on | off  (on = movimiento reducido)
   appearance: null, // { theme, palette, colors } — null = valores predeterminados (ver theme/palettes.js)
   splash: true, // pantalla de presentación al abrir cada sesión
+  vault: null, // presentación de la bóveda de relojes { style, size, intro, sound } — ver features/vault/vaultPrefs.js
 }
 
 export async function getSettings(db) {
