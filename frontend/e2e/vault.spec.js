@@ -182,8 +182,8 @@ test.describe('Bóveda de relojes', () => {
     expect(await dbCount(again, 'items', 'live')).toBe(3)
   })
 
-  test('móvil: selección táctil y ficha en panel inferior', async ({ browser }) => {
-    const context = await browser.newContext({ viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true, baseURL: 'http://127.0.0.1:5173' })
+  test('móvil: selección táctil y ficha en panel inferior', async ({ browser, baseURL }) => {
+    const context = await browser.newContext({ viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true, baseURL })
     const page = await context.newPage()
     await skipSplash(page)
     const errors = errorsOf(page)

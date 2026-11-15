@@ -1,0 +1,333 @@
+/* ===========================================================================
+   ARMARIO DE VESTIMENTA — vestidor boutique
+   Roble ahumado, molduras, cristal ahumado, tiradores de latón, espejo en el dorso de las
+   puertas, barras cromadas, baldas con luz LED cálida.
+
+   Escena CSS 3D: perspectiva en el escenario, cámara (rig) con preserve-3d y dos puertas
+   sólidas (frente, canto y dorso) que pivotan sobre sus bisagras exteriores.
+   Etapas acumulativas (useCinematicSequence): .w-s0 presentación · .w-s1 acercamiento
+   · .w-s2 pestillos · .w-s3 apertura · .w-s4 luz y organización · .w-s5 exploración.
+   .w-instant = estado final sin animar. Solo se animan transform, opacity y filter.
+   ======================================================================== */
+
+.wr-stage {
+  --pad-x: 56px;
+  --frame: 18px;
+  --door-t: 14px;
+  --depth: 64px;
+  --plinth: 16px;
+  --wood: #2c1f16;
+  --wood-hi: #4a3424;
+  --wood-lo: #170f0a;
+  --brass: #c9a46a;
+  --brass-hi: #f3dcaa;
+  --brass-lo: #7a5a2c;
+  --fabric: #2a231e;
+  --fabric-2: #1b1612;
+  --light: 255 210 150;
+  --card: #ede7dd;
+  --g-w: clamp(90px, min(9vw, 12.5vh), 132px);
+  --g-h: calc(var(--g-w) * 1.28);
+  --s-w: clamp(104px, min(10vw, 14vh), 150px);
+  --s-h: calc(var(--s-w) * 0.68);
+
+  position: relative;
+  isolation: isolate;
+  padding: 50px var(--pad-x) 54px;
+  overflow: hidden;
+  border-radius: var(--radius-panel);
+  border: 1px solid color-mix(in oklab, var(--c-text) 8%, transparent);
+  background: #0c0907;
+  perspective: 1800px;
+  perspective-origin: 50% 35%;
+  color: #efe8dc;
+  -webkit-tap-highlight-color: transparent;
+}
+@media (max-width: 559px) {
+  .wr-stage { --pad-x: 10px; --frame: 10px; --door-t: 10px; --depth: 36px; --plinth: 10px; --g-w: 92px; --s-w: 104px; padding-top: 34px; padding-bottom: 40px; perspective: 1100px; }
+}
+
+/* ---------------------------------------------------------------- SALA */
+.wr-room, .wr-room > * { position: absolute; inset: 0; pointer-events: none; }
+.wr-room { z-index: -1; }
+.wr-wall {
+  background:
+    radial-gradient(60% 50% at 50% 18%, rgb(var(--light) / 0.07), transparent 70%),
+    repeating-linear-gradient(90deg, rgb(255 255 255 / 0.012) 0 1px, transparent 1px 64px),
+    linear-gradient(180deg, #15100c, #0b0806);
+}
+.wr-floor { top: auto; height: 12%; background: linear-gradient(180deg, rgb(0 0 0 / 0.3), #050403); border-top: 1px solid rgb(255 255 255 / 0.03); }
+.wr-spot { background: radial-gradient(45% 40% at 50% 0%, rgb(var(--light) / 0.16), transparent 70%); opacity: 0.4; transition: opacity 1200ms ease; }
+.w-s4 .wr-spot { opacity: 1; }
+
+/* ---------------------------------------------------------------- CÁMARA */
+.wr-rig {
+  transform-style: preserve-3d;
+  transform: translate3d(0, 26px, -760px) rotateX(5deg);
+  transition: transform 1150ms cubic-bezier(0.5, 0.05, 0.25, 1);
+}
+.w-s1 .wr-rig { transform: translate3d(0, 0, 36px) rotateX(1deg); }
+.w-s3 .wr-rig { transform: translate3d(0, 0, -24px) rotateX(0.5deg); transition-duration: 1600ms; transition-timing-function: cubic-bezier(0.45, 0, 0.2, 1); }
+.w-s5 .wr-rig { transform: none; transition-duration: 1200ms; transition-timing-function: cubic-bezier(0.22, 1, 0.36, 1); }
+.wr-present { transform-style: preserve-3d; }
+.w-s0 .wr-present { animation: wr-present 800ms ease both; }
+@keyframes wr-present { from { opacity: 0; } to { opacity: 1; } }
+
+/* ---------------------------------------------------------------- MUEBLE */
+.wardrobe {
+  position: relative;
+  transform-style: preserve-3d;
+  padding: var(--frame) var(--frame) calc(var(--frame) + var(--plinth));
+  border-radius: 6px;
+  background:
+    repeating-linear-gradient(92deg, transparent 0 9px, rgb(0 0 0 / 0.12) 9px 10px, rgb(255 255 255 / 0.018) 10px 17px),
+    linear-gradient(180deg, var(--wood-hi), var(--wood) 30%, var(--wood-lo));
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.1), inset 0 0 0 1px rgb(0 0 0 / 0.5), 0 40px 70px -30px #000;
+}
+.wr-crown {
+  position: absolute; left: -12px; right: -12px; top: -14px; height: 16px; border-radius: 3px 3px 1px 1px; pointer-events: none;
+  background: linear-gradient(180deg, #5a4030, #2a1c13); box-shadow: 0 5px 10px rgb(0 0 0 / 0.55), inset 0 1px 0 rgb(255 255 255 / 0.12);
+  transform: translateZ(12px);
+}
+.wr-plinth {
+  position: absolute; left: 6px; right: 6px; bottom: 0; height: var(--plinth); pointer-events: none;
+  background: linear-gradient(180deg, #120c08, #080504); border-top: 1px solid rgb(var(--light) / 0.12);
+  transform: translateZ(2px);
+}
+.wr-side { position: absolute; top: 4px; bottom: 4px; width: var(--depth); pointer-events: none; background: linear-gradient(90deg, #120c08, #2a1d14); }
+.wr-side-l { left: 0; transform-origin: left center; transform: rotateY(90deg); }
+.wr-side-r { right: 0; transform-origin: right center; transform: rotateY(-90deg); }
+.wr-shadow { position: absolute; left: 4%; right: 4%; bottom: -26px; height: 36px; border-radius: 50%; background: radial-gradient(closest-side, rgb(0 0 0 / 0.75), transparent); filter: blur(6px); transform: translateZ(-30px); }
+
+/* ---------------------------------------------------------------- INTERIOR */
+.wr-interior {
+  position: relative;
+  display: flex; flex-direction: column;
+  min-height: 420px;
+  border-radius: 3px;
+  box-shadow: inset 0 0 0 2px rgb(0 0 0 / 0.55), inset 0 24px 40px -14px rgb(0 0 0 / 0.85), inset 14px 0 26px -12px rgb(0 0 0 / 0.75), inset -14px 0 26px -12px rgb(0 0 0 / 0.75);
+}
+.wr-back {
+  position: absolute; inset: 0; border-radius: inherit; pointer-events: none; z-index: -1;
+  background:
+    repeating-linear-gradient(0deg, rgb(255 255 255 / 0.014) 0 1px, transparent 1px 3px),
+    repeating-linear-gradient(90deg, rgb(0 0 0 / 0.08) 0 1px, transparent 1px 4px),
+    linear-gradient(180deg, var(--fabric), var(--fabric-2));
+}
+.wr-glow { position: absolute; inset: 0; pointer-events: none; background: radial-gradient(70% 30% at 50% 0%, rgb(var(--light) / 0.22), transparent 70%); opacity: 0; }
+.w-s4 .wr-glow { animation: wr-on 1200ms ease forwards; }
+.wr-dark { position: absolute; inset: 0; z-index: 6; pointer-events: none; background: rgb(6 4 3 / 0.88); }
+.w-s4 .wr-dark { animation: wr-dark-off 1000ms ease forwards; }
+@keyframes wr-on { 0% { opacity: 0; } 15% { opacity: 0.8; } 22% { opacity: 0.3; } 100% { opacity: 1; } }
+@keyframes wr-dark-off { 0% { opacity: 1; } 15% { opacity: 0.55; } 22% { opacity: 0.85; } 100% { opacity: 0; } }
+.wr-stage:not(.w-s4) .wr-interior { pointer-events: none; }
+
+/* ---------------------------------------------------------------- ESTANTES */
+.shelf { position: relative; display: flex; flex-direction: column; padding: 10px 14px 0; }
+.shelf + .shelf { margin-top: 2px; }
+.shelf-head { display: flex; align-items: center; gap: 12px; min-height: 26px; z-index: 2; }
+.shelf-plaque {
+  display: inline-flex; align-items: center; gap: 8px; flex-shrink: 0; margin: 0;
+  padding: 3px 10px; border-radius: 3px;
+  background: linear-gradient(180deg, var(--brass-hi), var(--brass) 55%, var(--brass-lo));
+  color: #2a1b08; box-shadow: 0 2px 4px rgb(0 0 0 / 0.5), inset 0 1px 0 rgb(255 255 255 / 0.4);
+}
+.shelf-plaque b { font: 600 10px/1.2 var(--font-sans); letter-spacing: 0.2em; text-transform: uppercase; }
+.shelf-plaque span { font: 600 13px/1 var(--font-display); }
+.shelf-chips { display: flex; gap: 6px; overflow-x: auto; scrollbar-width: none; padding: 2px; }
+.shelf-chips::-webkit-scrollbar { display: none; }
+.chip {
+  display: inline-flex; align-items: center; gap: 5px; flex-shrink: 0; height: 24px; padding: 0 10px; border-radius: 999px;
+  font-size: 11px; color: rgb(239 232 220 / 0.75); background: rgb(255 255 255 / 0.04); border: 1px solid rgb(255 255 255 / 0.1);
+  transition: background-color 200ms ease, color 200ms ease, border-color 200ms ease;
+}
+.chip span { opacity: 0.6; font-variant-numeric: tabular-nums; }
+.chip:hover { color: #fff; border-color: rgb(var(--light) / 0.4); }
+.chip.is-on { color: #2a1b08; background: linear-gradient(180deg, var(--brass-hi), var(--brass)); border-color: transparent; }
+
+.shelf-body { position: relative; }
+.shelf-rail {
+  position: absolute; left: 4px; right: 4px; top: 13px; height: 6px; border-radius: 3px; z-index: 0; pointer-events: none;
+  background: linear-gradient(180deg, #fbfbfc, #a9adb3 40%, #5d6168 60%, #c9cdd2);
+  box-shadow: 0 3px 5px rgb(0 0 0 / 0.55);
+  transform-origin: left center;
+}
+.shelf-rail::before, .shelf-rail::after { content: ''; position: absolute; top: -10px; width: 6px; height: 14px; border-radius: 2px; background: linear-gradient(90deg, #6b6f75, #d9dce0, #6b6f75); }
+.shelf-rail::before { left: 0; } .shelf-rail::after { right: 0; }
+
+.shelf-track {
+  position: relative; z-index: 1;
+  display: flex; gap: 18px;
+  overflow-x: auto; overscroll-behavior-x: contain;
+  scroll-snap-type: x proximity; scroll-padding-inline: 10px;
+  padding: 6px 10px 10px;
+  scrollbar-width: none;
+}
+.shelf-track::-webkit-scrollbar { display: none; }
+.shelf-track.fade-l { -webkit-mask-image: linear-gradient(90deg, transparent, #000 48px); mask-image: linear-gradient(90deg, transparent, #000 48px); }
+.shelf-track.fade-r { -webkit-mask-image: linear-gradient(90deg, #000 calc(100% - 48px), transparent); mask-image: linear-gradient(90deg, #000 calc(100% - 48px), transparent); }
+.shelf-track.fade-l.fade-r { -webkit-mask-image: linear-gradient(90deg, transparent, #000 48px, #000 calc(100% - 48px), transparent); mask-image: linear-gradient(90deg, transparent, #000 48px, #000 calc(100% - 48px), transparent); }
+
+.shelf-arrow {
+  position: absolute; top: 50%; z-index: 3; display: grid; place-items: center; width: 32px; height: 32px; margin-top: -16px; border-radius: 50%;
+  color: #2a1b08; background: linear-gradient(180deg, var(--brass-hi), var(--brass)); box-shadow: 0 4px 12px rgb(0 0 0 / 0.6);
+  opacity: 0; pointer-events: none; transform: scale(0.85); transition: opacity 220ms ease, transform 220ms ease;
+}
+.shelf-arrow.is-left { left: -4px; } .shelf-arrow.is-right { right: -4px; }
+.shelf-arrow.is-shown { opacity: 1; pointer-events: auto; transform: none; }
+.shelf-arrow:hover { filter: brightness(1.1); }
+
+.shelf-board {
+  position: relative; display: block; height: 12px; margin: 0 -14px; z-index: 2;
+  background: linear-gradient(180deg, #5b412e, #3a2819 45%, #24180f);
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.18), 0 6px 10px -2px rgb(0 0 0 / 0.65);
+}
+.shelf-led { position: absolute; left: 3%; right: 3%; top: 100%; height: 26px; pointer-events: none;
+  background: radial-gradient(60% 100% at 50% 0%, rgb(var(--light) / 0.35), transparent 75%); opacity: 0; }
+.shelf-led::before { content: ''; position: absolute; left: 0; right: 0; top: 0; height: 2px; border-radius: 2px; background: rgb(var(--light)); box-shadow: 0 0 10px rgb(var(--light) / 0.9); }
+.shelf[data-zone='shoes'] .shelf-led { display: none; }
+.w-s4 .shelf-led { animation: wr-on 900ms ease forwards; animation-delay: calc(var(--row) * 260ms); }
+
+/* Estado vacío integrado en el mueble. */
+.shelf-empty { position: relative; z-index: 1; display: flex; align-items: center; justify-content: center; gap: 14px; flex-wrap: wrap; min-height: calc(var(--g-h) * 0.62 + 40px); padding: 26px 12px 14px; text-align: center; color: rgb(239 232 220 / 0.7); }
+.shelf[data-zone='shoes'] .shelf-empty { min-height: calc(var(--s-h) + 40px); }
+.shelf-empty p { margin: 0; font: italic 400 18px/1.2 var(--font-display); }
+.shelf-empty-ghost { width: 46px; height: 34px; border: 1.5px dashed rgb(var(--light) / 0.35); border-radius: 50% 50% 4px 4px / 30% 30% 4px 4px; }
+
+/* ---------------------------------------------------------------- PRENDAS */
+.garment { flex: none; scroll-snap-align: start; opacity: 0; transform: translateX(-36px); }
+.w-s4 .garment { animation: g-in 680ms cubic-bezier(0.22, 1, 0.36, 1) forwards; animation-delay: calc(var(--row) * 380ms + 180ms + min(var(--i), 10) * 70ms); }
+.w-s4 .shelf[data-zone='shoes'] .garment { animation-name: g-in-shoe; }
+@keyframes g-in { from { opacity: 0; transform: translateX(-36px); } to { opacity: 1; transform: none; } }
+@keyframes g-in-shoe { from { opacity: 0; transform: translate(-14px, 10px); } to { opacity: 1; transform: none; } }
+.shelf-head { opacity: 0; transform: translateX(-16px); }
+.w-s4 .shelf-head { animation: g-in 600ms cubic-bezier(0.22, 1, 0.36, 1) forwards; animation-delay: calc(var(--row) * 380ms); }
+.shelf-rail { transform: scaleX(0); }
+.w-s4 .shelf-rail { animation: rail-in 700ms cubic-bezier(0.22, 1, 0.36, 1) forwards; animation-delay: calc(var(--row) * 380ms + 60ms); }
+@keyframes rail-in { to { transform: none; } }
+
+.garment-btn { display: flex; flex-direction: column; align-items: center; gap: 0; padding: 0; color: inherit; cursor: pointer; border-radius: 12px; }
+.garment-btn:focus-visible { outline: 2px solid rgb(var(--light)); outline-offset: 4px; }
+.garment-swing { display: flex; flex-direction: column; align-items: center; transform-origin: 50% 4px; }
+.hanger { display: block; width: calc(var(--g-w) * 0.86); height: 34px; margin-bottom: -6px; overflow: visible; filter: drop-shadow(0 2px 2px rgb(0 0 0 / 0.5)); }
+.hanger-hook { fill: none; stroke: #d9dce0; stroke-width: 2.4; stroke-linecap: round; }
+.hanger-body { fill: #6b4a30; stroke: #3b2716; stroke-width: 1; }
+.hanger-bar { fill: #6b4a30; }
+.hanger-clip { fill: #cfd2d6; }
+.garment-card {
+  position: relative; display: grid; place-items: center; overflow: hidden;
+  width: var(--g-w); height: var(--g-h); border-radius: 10px 10px 12px 12px;
+  background: radial-gradient(80% 60% at 50% 30%, #fbf8f3, var(--card) 70%);
+  box-shadow: 0 14px 22px -12px rgb(0 0 0 / 0.9), inset 0 0 0 1px rgb(0 0 0 / 0.06);
+  transition: box-shadow 320ms ease, filter 320ms ease, transform 320ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+.garment[data-zone='shoes'] .garment-card {
+  width: var(--s-w); height: var(--s-h); border-radius: 8px;
+  background: radial-gradient(90% 80% at 50% 25%, #fbf8f3, #e6dfd2 80%);
+  box-shadow: 0 10px 12px -8px rgb(0 0 0 / 0.85), 0 1px 0 rgb(255 255 255 / 0.25) inset;
+}
+.garment[data-zone='shoes'] .garment-btn { padding-top: 14px; }
+.garment-img {
+  width: 92%; height: 92%; object-fit: contain;
+  mix-blend-mode: multiply; /* el fondo blanco de la fotografía se funde con la tarjeta sin editar el archivo */
+  animation: fade 400ms ease both;
+}
+.garment-loading { position: absolute; inset: 0; background: linear-gradient(90deg, rgb(0 0 0 / 0.03), rgb(0 0 0 / 0.08), rgb(0 0 0 / 0.03)); background-size: 200% 100%; animation: shimmer 1.6s linear infinite; }
+.garment-missing { display: flex; flex-direction: column; align-items: center; gap: 4px; font-size: 10px; color: rgb(0 0 0 / 0.45); }
+.garment-star { position: absolute; top: 6px; right: 6px; display: grid; place-items: center; width: 20px; height: 20px; border-radius: 50%; color: #2a1b08; background: var(--brass); box-shadow: 0 2px 5px rgb(0 0 0 / 0.4); }
+.garment-tag { display: flex; flex-direction: column; align-items: center; max-width: calc(var(--g-w) + 10px); margin-top: 8px; line-height: 1.2; text-align: center; }
+.garment[data-zone='shoes'] .garment-tag { max-width: calc(var(--s-w) + 6px); margin-top: 10px; margin-bottom: 4px; }
+.garment-tag b { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font: 500 15px/1.15 var(--font-display); color: #f4ede2; }
+.garment-tag span { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 10px; letter-spacing: 0.04em; color: rgb(239 232 220 / 0.6); }
+
+/* Hover / selección: la prenda se balancea en su percha (el calzado se eleva) y se ilumina. */
+.garment-btn:hover .garment-swing, .garment.is-active .garment-swing { animation: g-sway 1500ms cubic-bezier(0.3, 0, 0.3, 1); }
+@keyframes g-sway { 0% { transform: rotate(0); } 22% { transform: rotate(2.6deg); } 50% { transform: rotate(-1.8deg); } 75% { transform: rotate(0.8deg); } 100% { transform: rotate(0); } }
+.garment[data-zone='shoes'] .garment-swing { animation: none !important; }
+.garment-btn:hover .garment-card, .garment.is-active .garment-card {
+  box-shadow: 0 0 0 1.5px rgb(var(--light) / 0.8), 0 0 28px -4px rgb(var(--light) / 0.6), 0 16px 24px -12px #000;
+}
+.garment[data-zone='shoes'] .garment-btn:hover .garment-card, .garment[data-zone='shoes'].is-active .garment-card { transform: translateY(-5px); }
+.garment-btn:hover .garment-tag b, .garment.is-active .garment-tag b { color: rgb(var(--light)); }
+.wr-stage:has(.garment.is-active) .garment:not(.is-active) .garment-card { filter: brightness(0.78); }
+
+/* ---------------------------------------------------------------- PUERTAS */
+.wr-door {
+  position: absolute; top: var(--frame); bottom: calc(var(--frame) + var(--plinth));
+  width: calc(50% - var(--frame) - 1px);
+  transform-style: preserve-3d; z-index: 7; pointer-events: none;
+  transform: translateZ(calc(var(--door-t) / 2 + 1px));
+}
+.wr-door-l { left: var(--frame); transform-origin: left center; }
+.wr-door-r { right: var(--frame); transform-origin: right center; }
+.w-s2 .wr-door { transform: translateZ(calc(var(--door-t) / 2 + 4px)); transition: transform 180ms ease; }
+.w-s3 .wr-door-l { animation: wr-open-l 1700ms forwards; }
+.w-s3 .wr-door-r { animation: wr-open-r 1700ms 70ms forwards; }
+/* Las puertas se abren del todo (≈160°) y quedan plegadas junto a los laterales del mueble:
+   así no tapan el interior. Arranque lento (peso), aceleración y asentamiento con rebote leve. */
+@keyframes wr-open-l {
+  0% { transform: translateZ(calc(var(--door-t) / 2 + 4px)) rotateY(0); animation-timing-function: cubic-bezier(0.5, 0, 0.35, 1); }
+  85% { transform: translateZ(calc(var(--door-t) / 2 + 4px)) rotateY(-163deg); animation-timing-function: ease-in-out; }
+  100% { transform: translateZ(calc(var(--door-t) / 2 + 4px)) rotateY(-160deg); }
+}
+@keyframes wr-open-r {
+  0% { transform: translateZ(calc(var(--door-t) / 2 + 4px)) rotateY(0); animation-timing-function: cubic-bezier(0.5, 0, 0.35, 1); }
+  85% { transform: translateZ(calc(var(--door-t) / 2 + 4px)) rotateY(163deg); animation-timing-function: ease-in-out; }
+  100% { transform: translateZ(calc(var(--door-t) / 2 + 4px)) rotateY(160deg); }
+}
+.wr-door-face, .wr-door-edge { position: absolute; backface-visibility: hidden; -webkit-backface-visibility: hidden; }
+.wr-door-face { inset: 0; border-radius: 3px; }
+.wr-door-front {
+  transform: translateZ(calc(var(--door-t) / 2));
+  background:
+    linear-gradient(110deg, rgb(255 255 255 / 0.07), transparent 30%, transparent 70%, rgb(255 255 255 / 0.04)),
+    repeating-linear-gradient(90deg, transparent 0 8px, rgb(0 0 0 / 0.13) 8px 9px, rgb(255 255 255 / 0.02) 9px 15px),
+    linear-gradient(180deg, var(--wood-hi), var(--wood) 35%, var(--wood-lo));
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.12), inset 0 0 0 1px rgb(0 0 0 / 0.5), 0 10px 22px -8px rgb(0 0 0 / 0.9);
+}
+.wr-door-molding { position: absolute; inset: 14px; border-radius: 2px; box-shadow: inset 0 0 0 1px rgb(0 0 0 / 0.5), inset 0 0 0 2px rgb(255 255 255 / 0.05), inset 0 0 0 5px rgb(0 0 0 / 0.18), inset 0 0 0 6px rgb(var(--light) / 0.12); }
+.wr-door-glass {
+  position: absolute; left: 26px; right: 26px; top: 26px; height: 52%; border-radius: 2px;
+  background:
+    linear-gradient(115deg, rgb(255 255 255 / 0.14), rgb(255 255 255 / 0.02) 32%, transparent 35%, rgb(255 255 255 / 0.07) 38%, transparent 44%),
+    rgb(14 10 8 / 0.82);
+  box-shadow: inset 0 0 0 1px rgb(var(--light) / 0.22), inset 0 0 18px rgb(0 0 0 / 0.6);
+}
+.wr-door-handle {
+  position: absolute; top: 34%; height: 32%; width: 7px; border-radius: 4px;
+  background: linear-gradient(90deg, var(--brass-lo), var(--brass-hi) 40%, var(--brass) 65%, var(--brass-lo));
+  box-shadow: 3px 4px 8px rgb(0 0 0 / 0.6);
+}
+.wr-door-l .wr-door-handle { right: 12px; }
+.wr-door-r .wr-door-handle { left: 12px; }
+.w-s2 .wr-door-handle { animation: handle-glint 500ms ease; }
+@keyframes handle-glint { 50% { filter: brightness(1.6); } }
+.wr-door-edge { top: 0; bottom: 0; width: var(--door-t); background: linear-gradient(90deg, var(--wood-lo), var(--wood-hi), var(--wood-lo)); }
+.wr-door-l .wr-door-edge { right: calc(var(--door-t) / -2); transform: rotateY(90deg); }
+.wr-door-r .wr-door-edge { left: calc(var(--door-t) / -2); transform: rotateY(-90deg); }
+.wr-door-back { transform: rotateY(180deg) translateZ(calc(var(--door-t) / 2)); background: linear-gradient(180deg, #2a1d14, #1a120c); box-shadow: inset 0 0 0 1px rgb(0 0 0 / 0.5); }
+.wr-mirror {
+  position: absolute; inset: 14px; border-radius: 2px;
+  background:
+    linear-gradient(120deg, rgb(255 255 255 / 0.28), rgb(255 255 255 / 0.05) 30%, transparent 34%, rgb(255 255 255 / 0.12) 40%, transparent 48%),
+    linear-gradient(180deg, #8c949c, #4c535a 60%, #3a4046);
+  box-shadow: inset 0 0 0 2px rgb(var(--light) / 0.25);
+}
+
+/* ---------------------------------------------------------------- CONTROLES */
+.wr-ctl {
+  position: absolute; right: 14px; z-index: 9;
+  display: inline-flex; align-items: center; gap: 6px; height: 30px; padding: 0 13px; border-radius: 999px;
+  font-size: 12px; color: rgb(239 232 220 / 0.85); background: rgb(255 255 255 / 0.08); border: 1px solid rgb(255 255 255 / 0.16);
+  backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); transition: background-color 200ms ease;
+}
+.wr-ctl:hover { background: rgb(255 255 255 / 0.16); color: #fff; }
+.wr-skip { bottom: 10px; animation: fade 400ms ease 500ms both; }
+.wr-replay { top: 10px; }
+
+/* ---------------------------------------------------------------- INSTANTÁNEO / REPOSO */
+.w-instant .seq, .w-instant .seq *, .w-instant .garment, .w-instant .shelf-head, .w-instant .shelf-rail, .w-instant .shelf-led {
+  animation-duration: 0s !important; animation-delay: 0s !important; transition: none !important;
+}
+.w-instant .wr-present { animation: none !important; }
+.w-still .garment-swing { animation: none !important; }

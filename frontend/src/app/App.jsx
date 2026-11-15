@@ -11,6 +11,7 @@ import { ThemeProvider } from '../theme/ThemeProvider.jsx'
 import { Button, EmptyState, FeedbackProvider } from '../components/ui.jsx'
 import DashboardPage from '../features/dashboard/DashboardPage.jsx'
 import CollectionPage from '../features/items/CollectionPage.jsx'
+import WardrobePage from '../features/wardrobe/WardrobePage.jsx'
 import WatchesPage from '../features/vault/WatchesPage.jsx'
 import ItemDetailPage from '../features/items/ItemDetailPage.jsx'
 import IncomePage from '../features/income/IncomePage.jsx'
@@ -29,7 +30,7 @@ function AppRoutes() {
       <Routes>
         <Route element={<Layout />}>
           <Route index element={<DashboardPage />} />
-          <Route path="vestimenta" element={<CollectionPage sectionKey="vestimenta" />} />
+          <Route path="vestimenta" element={<WardrobePage />} />
           <Route path="vestimenta/:id" element={<ItemDetailPage />} />
           <Route path="accesorios" element={<CollectionPage sectionKey="accesorios" />} />
           <Route path="accesorios/:id" element={<ItemDetailPage />} />

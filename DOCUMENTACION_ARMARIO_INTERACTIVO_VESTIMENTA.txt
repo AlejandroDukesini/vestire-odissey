@@ -1,0 +1,251 @@
+ODISSEY — ARMARIO INTERACTIVO DE VESTIMENTA
+Documentación técnica · 2026-11-15 · rama `desarrollo`
+=====================================================================
+
+1. ANÁLISIS PREVIO
+---------------------------------------------------------------------
+- /vestimenta usaba la cuadrícula genérica features/items/CollectionPage.jsx
+  (tarjetas ItemCard), compartida con accesorios, propiedades y empresas.
+- Las prendas son registros de la tabla `items` de IndexedDB (Dexie) con
+  kind "garment". Campos (domain/kinds.js): name*, garmentType* (lista de 9
+  tipos: Camiseta, Camisa, Pantalón, Chaqueta, Abrigo, Zapatos, Traje, Vestido,
+  Otra), customType (si "Otra"), brand, color, material, size, value,
+  acquiredAt, description, notes. No había campo de estado ni tipos para buzos,
+  jeans, tenis, etc. Fotos en media/mediaBlobs/thumbs (principal =
+  item.primaryMediaId).
+- CRUD: db/items.js + useItemActions.jsx (papelera con confirmación) +
+  ItemForm.jsx (formulario generado desde el catálogo). Relaciones: las prendas
+  se usan en Previsualizaciones (composiciones) y en el dashboard.
+- La sección de relojes ya tenía la lógica a reutilizar: secuencia por etapas,
+  panel lateral/hoja móvil, hover con selección fijada y búsqueda compartida.
+- Tecnologías: React 19, Tailwind 4, Dexie. No hay Framer Motion ni GSAP.
+  Decisión: CSS 3D + animaciones CSS, igual que la bóveda. No se añadió ninguna
+  dependencia ni se usó Three.js.
+
+2. ARCHIVOS CREADOS
+---------------------------------------------------------------------
+frontend/src/features/wardrobe/
+  WardrobePage.jsx     Página /vestimenta: datos (listItems), búsqueda/filtros,
+                       formulario, escena (WardrobeScene), selección, panel y
+                       configuración de la ficha de prenda (GARMENT_PANEL).
+  Wardrobe.jsx         Escenario: sala, cámara, mueble con laterales, cornisa
+                       y zócalo, dos puertas sólidas (frente con moldura,
+                       cristal ahumado y tirador de latón; canto; dorso con
+                       espejo), interior, botones Saltar/Repetir.
+  WardrobeShelf.jsx    Un estante: placa con nombre y total, indicadores de
+                       categoría (filtran solo ese estante), barra cromada o
+                       balda, fila horizontal desplazable con flechas, estado
+                       vacío integrado y navegación con teclado.
+  GarmentItem.jsx      Prenda: percha de hombros (superiores), percha de pinzas
+                       (inferiores) o peana (calzado), fotografía y etiqueta.
+  wardrobePrefs.jsx    Preferencias (settings.wardrobe: intro y sonido), hook
+                       useWardrobePrefs() y panel WardrobeSettings.
+  wardrobe.css         Materiales, estantes y toda la coreografía.
+frontend/src/features/showcase/   (piezas compartidas bóveda + armario)
+  useCinematicSequence.js  Motor genérico de secuencias por etapas (tiempos,
+                       saltar, repetir, "una vez por sesión", sonido).
+  ItemDetailPanel.jsx  Panel de detalles genérico (columna lateral u hoja).
+  showcase.css         Estilos del panel (movidos desde vault.css).
+  hooks.js             useMedia() y useViewportHeight().
+frontend/src/domain/wardrobe.js   Estantes (ZONES), wardrobeZone(),
+                       garmentTypeLabel(), splitByZone().
+frontend/tests/wardrobe.test.js   Pruebas unitarias del armario.
+frontend/e2e/wardrobe.spec.js     Pruebas de navegador del armario.
+DOCUMENTACION_ARMARIO_INTERACTIVO_VESTIMENTA.txt   (este archivo)
+
+3. ARCHIVOS Y COMPONENTES MODIFICADOS
+---------------------------------------------------------------------
+- src/app/App.jsx: /vestimenta → WardrobePage (la ficha /vestimenta/:id no
+  cambia).
+- src/domain/kinds.js:
+  · GARMENT_TYPES ampliado SIN quitar ni renombrar los existentes: se añaden
+    Buzo, Sudadera, Jeans, Bermuda, Short, Falda, Tenis, Zapatos formales,
+    Botas y Sandalias.
+  · Nuevo campo opcional de prenda `condition` ("Estado"), con la misma lista
+    que los relojes (CONDITIONS; WATCH_CONDITIONS queda como alias). Se añadió
+    a los filtros.
+- src/db/settings.js: nueva preferencia `wardrobe` (lista blanca).
+- src/features/settings/SettingsPage.jsx: Apariencia → "Armario de
+  vestimenta" (cuándo reproducir la apertura y sonido).
+- Bóveda de relojes (refactor sin cambio visible):
+  · vault/useVaultSequence.js ahora usa showcase/useCinematicSequence.js.
+  · vault/WatchDetailPanel.jsx ahora es una configuración de
+    showcase/ItemDetailPanel.jsx.
+  · vault/WatchesPage.jsx importa useMedia/useViewportHeight compartidos.
+  · vault/vault.css: el bloque del panel pasó a showcase/showcase.css.
+- e2e/crud.spec.js: los pasos de prenda que usaban la tarjeta y su enlace ahora
+  usan el armario y el panel ("Ficha completa").
+- e2e/vault.spec.js: los contextos móviles usan el baseURL de la configuración.
+CollectionPage.jsx sigue sirviendo a accesorios, propiedades y empresas.
+
+4. CÓMO FUNCIONA EL ARMARIO
+---------------------------------------------------------------------
+Diseño elegido: vestidor boutique de roble ahumado con molduras, cristal
+ahumado en las puertas, tiradores verticales de latón, espejo en el dorso de
+las puertas, interior tapizado en tejido oscuro, barras cromadas, baldas de
+madera y tiras LED cálidas bajo cada balda. Coherente con la estética oscura y
+dorada de Odissey y con la bóveda de relojes.
+
+Estantes (de arriba abajo), derivados del tipo de prenda ya guardado:
+  Superior  "Prendas superiores": Camiseta, Camisa, Buzo, Sudadera, Chaqueta,
+            Abrigo, Traje y Vestido (cuelgan de una percha de hombros).
+  Media     "Pantalones y prendas inferiores": Pantalón, Jeans, Bermuda, Short,
+            Falda (percha de pinzas).
+  Inferior  "Calzado": Zapatos, Tenis, Zapatos formales, Botas, Sandalias
+            (sobre peanas apoyadas en la balda).
+  "Otra" se clasifica por el tipo personalizado o el nombre con palabras clave
+  (p. ej. "Mocasines" → calzado, "Leggings" → inferiores); si no coincide nada,
+  va al estante superior.
+La clasificación es una regla de presentación: NO se guarda nada nuevo ni hay
+una colección paralela. Al cambiar el tipo de una prenda, cambia de estante.
+
+Cada estante:
+- Placa de latón con el nombre y el total.
+- Indicadores de categoría con recuento ("Todas", "Camisa 2", …) que filtran
+  solo ese estante.
+- Fila horizontal de izquierda a derecha con desplazamiento independiente:
+  táctil/trackpad nativo, flechas doradas que aparecen solo si hay más
+  contenido, difuminado en los bordes, snap suave y flechas del teclado.
+- Estado vacío integrado: "Este estante está esperando nuevas prendas" /
+  "Esta barra está esperando nuevas prendas" / "Este estante está esperando
+  nuevo calzado", con botón para agregar.
+
+Fotografías: la principal de cada prenda (miniatura de 560 px), completa con
+object-fit: contain (sin deformar). Va sobre una tarjeta clara con
+mix-blend-mode: multiply: un fondo blanco de estudio se funde con la tarjeta sin
+modificar el archivo. Carga diferida cuando la prenda entra en pantalla.
+
+Interacción (misma lógica que relojes):
+- Hover (ratón): la prenda se balancea en su percha (el calzado se eleva), se
+  ilumina, las demás se atenúan y el panel muestra su ficha. 220 ms de gracia
+  al salir para no parpadear.
+- Clic/toque/Enter: fija la prenda seleccionada.
+- ≥1280 px: panel lateral fijo; sin selección muestra el resumen del armario
+  (prendas por estante y valor registrado).
+- <1280 px (tableta y móvil): hoja lateral/inferior que no comprime el armario;
+  se cierra con X, Escape o tocando fuera.
+- Ficha: fotografía principal y adicionales, nombre, marca, tipo, color, talla,
+  material, estado, fecha de adquisición, valor registrado (precio),
+  descripción y observaciones. SOLO se muestran los campos con dato.
+- Acciones: Editar (formulario existente), Ficha completa (galería, modelo 3D,
+  relaciones), Destacar, Mover a la papelera, anterior/siguiente (orden:
+  superiores → inferiores → calzado).
+- Búsqueda, orden y filtros existentes funcionan sobre el armario.
+
+5. CÓMO FUNCIONAN LAS ANIMACIONES
+---------------------------------------------------------------------
+Motor: showcase/useCinematicSequence.js añade al escenario las clases de cada
+etapa alcanzada (acumulativas: w-s1…w-s5), y wardrobe.css define el aspecto.
+Solo se animan transform, opacity y filter.
+
+  0 ms     Presentación  el armario aparece cerrado (fundido), lejos y en
+                         penumbra.
+  350 ms   Entrada       la cámara se acerca (1,15 s, easing suave).
+  1300 ms  Pestillos     las puertas se despegan 4 px y los tiradores brillan.
+  1500 ms  Apertura      las dos puertas giran en 3D sobre sus bisagras
+                         exteriores (transform-origin en el borde), arranque
+                         lento, rebasan levemente y se asientan a ±160°,
+                         pegadas a los laterales (espejo visible), para no tapar
+                         el interior. La derecha arranca 70 ms después.
+  2200 ms  Luz y orden   se enciende el interior y las LED bajo cada balda
+                         (escalonadas de arriba abajo). Luego cada estante se
+                         organiza:
+                           · su placa entra desde la izquierda,
+                           · la barra cromada "se dibuja" de izquierda a
+                             derecha (scaleX),
+                           · las prendas entran desde la izquierda con opacidad,
+                             70 ms después de la anterior (máximo 10 pasos),
+                           · el estante medio empieza 380 ms después del
+                             superior y el calzado 760 ms después, este con un
+                             desplazamiento más sutil (izquierda + leve subida).
+  4300 ms  Exploración   la cámara termina su encuadre.
+La interacción se habilita en cuanto se enciende la luz (2,2 s); no hay que
+esperar a que termine la secuencia. Una prenda nueva o editada entra con la
+misma animación. "Saltar apertura" (o Escape) lleva al estado final al instante.
+
+Repetición: por defecto la apertura se ve UNA VEZ POR SESIÓN; al volver a
+Vestimenta el armario ya está abierto y ordenado. "Repetir apertura" la vuelve
+a reproducir. Configurable en Configuración → Apariencia (cada vez / una vez
+por sesión / nunca). Con movimiento reducido el armario aparece abierto y sin
+balanceos. Sonido sintetizado sutil (pestillo, puertas, luz), opcional, y solo
+si el navegador lo permite.
+
+6. PRUEBAS EJECUTADAS (todas ejecutadas de verdad en esta sesión)
+---------------------------------------------------------------------
+Unitarias — `npx vitest run`: 7 archivos, 59/59 correctas. Nuevas en
+tests/wardrobe.test.js: clasificación de todos los tipos en su estante,
+"Otra" por palabras clave, reparto sin pérdidas y con orden, catálogo ampliado
+que conserva los tipos antiguos, campo de estado validado sin alterar
+registros previos, preferencias por defecto.
+
+Navegador — `npx playwright test` contra un servidor de Vite nuevo (puerto
+5188, --force): 19/19 correctas, con la suite previa completa (CRUD, bóveda,
+persistencia, temas, presentación, visual). e2e/wardrobe.spec.js cubre las 13
+validaciones pedidas:
+   1 Se abre: empieza cerrado; al final cada puerta tiene una matriz 3D, origen
+     en su borde y ángulo >140°.
+   2 Orden de estantes: el retardo del primer elemento es creciente superior <
+     medio < calzado.
+   3 Izquierda a derecha: el retardo crece con cada prenda, la animación es de
+     entrada desde la izquierda y las posiciones X crecen a igual altura.
+   4 Clasificación: 3 superiores, 2 inferiores, 3 calzado ("Otra: Mocasines"
+     en calzado). Los indicadores filtran solo su estante.
+   5 Fotografías cargadas (naturalWidth > 0) con object-fit: contain.
+   6 Ficha con datos reales; campos vacíos ausentes. Hover cambia la ficha.
+   7 Crear desde el formulario → aparece en su estante y desaparece el vacío.
+   8 Editar (nombre y tipo) → cambia de estante y se actualiza la ficha.
+   9 Eliminar → sale del armario.
+  10 Sin pérdida: 3 registros (2 vigentes + 1 en papelera) y fotos intactas.
+  11 Sin saltos: estados intermedios comprobados; volver a entrar no repite la
+     animación; repetir y saltar funcionan.
+  12 Tableta 1024×768 y móvil 390×844 táctiles: sin scroll horizontal de página,
+     prendas sin superponerse, desplazamiento independiente por estante y ficha
+     al tocar.
+  13 Sin errores de consola en todas las pruebas del armario.
+Además se revisaron capturas de cada fase en 1440×900, 1024×768 y 390×844.
+`vite build` correcto.
+
+7. PROBLEMAS ENCONTRADOS Y CORREGIDOS
+---------------------------------------------------------------------
+- Con apertura a ~100° las puertas venían hacia la cámara y tapaban gran parte
+  del interior: ahora se abren hasta ±160° y quedan junto a los laterales.
+- El armario no cabía en altura en 900 px: tamaño de tarjeta ligado también a
+  la altura de la ventana (clamp con vh).
+- Error real detectado por las pruebas tras generalizar el panel: la opción de
+  configuración se llamaba `valueOf`, que todo objeto JS hereda
+  (Object.prototype.valueOf). En los relojes, que no la definían, devolvía el
+  propio objeto de configuración como "fecha" → "Invalid time value" y la
+  sección caía en su pantalla de error. Renombrada a `pick`. Bóveda y armario
+  verificados de nuevo.
+- Se descartó convertir la rueda vertical en desplazamiento horizontal: en
+  React el evento wheel es pasivo y la página se habría movido a la vez.
+- Selectores e2e ambiguos (indicador "Botas" frente a la prenda "Botas…") y
+  contextos móviles con URL fija: corregidos en las pruebas.
+- Un servidor de Vite antiguo en el puerto 5173 tiene la caché de dependencias
+  desfasada y provoca fallos ajenos al código ("Failed to fetch dynamically
+  imported module"); por eso las pruebas se ejecutaron con un servidor nuevo.
+
+8. ASPECTOS PENDIENTES
+---------------------------------------------------------------------
+- Fotos con fondo de color (no blanco): se ven como una foto sobre la tarjeta;
+  la integración ideal requiere un recorte PNG. Las prendas aún no usan el rol
+  "cutout" en el armario (la bóveda sí).
+- Las palabras clave para "Otra" cubren los casos habituales en español; un
+  tipo personalizado poco común puede caer en el estante superior. Se arregla
+  eligiendo el tipo concreto (ahora hay más opciones).
+- "Traje" y "Vestido" se cuelgan en el estante superior (prendas de cuerpo
+  entero); no hay un cuarto estante para ellas.
+- No se probó en Safari ni Firefox (las pruebas usan Chromium).
+- "Agregar prenda" desde un estante vacío abre el formulario general; no
+  preselecciona el tipo de ese estante.
+
+9. EJECUTAR Y MANTENER
+---------------------------------------------------------------------
+  npm run dev:web     http://localhost:5173/vestimenta
+  npm run test:web    pruebas unitarias
+  npm run test:e2e    pruebas de navegador (si aparece "Failed to fetch
+                      dynamically imported module", reiniciar Vite con --force)
+Ajustar tiempos: TIMES en WardrobePage.jsx y retardos de wardrobe.css (deben
+ser coherentes). Nuevo tipo de prenda: añadirlo a GARMENT_TYPES (kinds.js) y a
+TYPE_ZONE (domain/wardrobe.js). Nuevo campo en la ficha: añadir la clave a
+GARMENT_PANEL.specKeys en WardrobePage.jsx.

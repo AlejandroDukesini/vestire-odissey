@@ -13,6 +13,7 @@ import { formatBytes, makeThumbnail } from '../../lib/files.js'
 import { formatDateTime } from '../../lib/format.js'
 import { saveBlob } from '../../lib/download.js'
 import VaultStyleSelector from '../vault/VaultStyleSelector.jsx'
+import { WardrobeSettings } from '../wardrobe/wardrobePrefs.jsx'
 import { Button, Dialog, Field, Notice, PageHeader, Panel, Tabs, useConfirm, useToast } from '../../components/ui.jsx'
 import { logActivity } from '../../db/activity.js'
 import AppearanceEditor from './AppearanceEditor.jsx'
@@ -325,6 +326,11 @@ export default function SettingsPage() {
               <p className="eyebrow mb-1">Colección de relojes</p>
               <h2 className="mb-5 font-display text-2xl">Bóveda de relojes</h2>
               <VaultStyleSelector />
+            </Panel>
+            <Panel>
+              <p className="eyebrow mb-1">Guardarropa</p>
+              <h2 className="mb-5 font-display text-2xl">Armario de vestimenta</h2>
+              <WardrobeSettings />
             </Panel>
           </>
         )}

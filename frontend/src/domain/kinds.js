@@ -19,15 +19,21 @@ const common = {
   mileage: { key: 'mileage', label: 'Kilometraje', type: 'number', min: 0 },
 }
 
+// Tipos de prenda. Los valores originales se conservan (registros existentes); los nuevos se
+// añaden agrupados por estante del armario: superiores, inferiores y calzado (ver domain/wardrobe.js).
 export const GARMENT_TYPES = [
-  'Camiseta', 'Camisa', 'Pantalón', 'Chaqueta', 'Abrigo', 'Zapatos', 'Traje', 'Vestido', 'Otra',
+  'Camiseta', 'Camisa', 'Buzo', 'Sudadera', 'Chaqueta', 'Abrigo', 'Traje', 'Vestido',
+  'Pantalón', 'Jeans', 'Bermuda', 'Short', 'Falda',
+  'Zapatos', 'Tenis', 'Zapatos formales', 'Botas', 'Sandalias',
+  'Otra',
 ]
 export const ACCESSORY_TYPES = [
   'Gafas', 'Bolso', 'Cartera', 'Joya', 'Collar', 'Pulsera', 'Anillo', 'Sombrero', 'Correa', 'Otro',
 ]
 
 export const WATCH_MOVEMENTS = ['Automático', 'Manual', 'Cuarzo', 'Solar', 'Kinético', 'Spring Drive', 'Inteligente', 'Otro']
-export const WATCH_CONDITIONS = ['Nuevo', 'Como nuevo', 'Excelente', 'Muy bueno', 'Bueno', 'Con signos de uso', 'Para restaurar']
+export const CONDITIONS = ['Nuevo', 'Como nuevo', 'Excelente', 'Muy bueno', 'Bueno', 'Con signos de uso', 'Para restaurar']
+export const WATCH_CONDITIONS = CONDITIONS
 
 export const KINDS = {
   garment: {
@@ -38,9 +44,10 @@ export const KINDS = {
       { key: 'customType', label: 'Tipo personalizado', type: 'text', showIf: (f) => f.garmentType === 'Otra' },
       common.brand, common.color, common.material,
       { key: 'size', label: 'Talla', type: 'text' },
+      { key: 'condition', label: 'Estado', type: 'select', options: CONDITIONS },
       common.value, common.acquiredAt, common.description, common.notes,
     ],
-    filters: ['garmentType', 'size', 'color', 'material', 'brand'],
+    filters: ['garmentType', 'size', 'color', 'material', 'brand', 'condition'],
     subtitle: (f) => [f.garmentType === 'Otra' ? f.customType || 'Otra' : f.garmentType, f.size && `Talla ${f.size}`, f.color].filter(Boolean).join(' · '),
     title: (f) => f.name,
     supports3d: true, wearable: true,

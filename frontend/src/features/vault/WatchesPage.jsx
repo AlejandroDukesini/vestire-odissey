@@ -18,6 +18,7 @@ import WatchDetailPanel from './WatchDetailPanel.jsx'
 import VaultStyleSelector, { useVaultPrefs } from './VaultStyleSelector.jsx'
 import { useVaultSequence, LAST_STAGE } from './useVaultSequence.js'
 import { computeLayout } from './vaultPrefs.js'
+import { useMedia, useViewportHeight } from '../showcase/hooks.js'
 
 const KIND = 'watch'
 const def = KINDS[KIND]
@@ -41,30 +42,6 @@ function lockScale(layout, items, narrow) {
   const w = cols * layout.cell + (cols - 1) * layout.gap + 2 * pad
   const h = rows * (layout.cell + 50) + (rows - 1) * layout.gap + 2 * pad
   return Math.max(0.5, Math.min(1.15, w / 400, h / 360))
-}
-
-function useMedia(query) {
-  const get = () => globalThis.matchMedia?.(query).matches ?? false
-  const [match, setMatch] = useState(get)
-  useEffect(() => {
-    const mq = globalThis.matchMedia?.(query)
-    if (!mq) return
-    const on = () => setMatch(mq.matches)
-    mq.addEventListener('change', on)
-    return () => mq.removeEventListener('change', on)
-  }, [query])
-  return match
-}
-
-function useViewportHeight() {
-  const [h, setH] = useState(() => globalThis.innerHeight || 900)
-  useEffect(() => {
-    let t = 0
-    const on = () => { clearTimeout(t); t = setTimeout(() => setH(window.innerHeight), 150) }
-    window.addEventListener('resize', on)
-    return () => { clearTimeout(t); window.removeEventListener('resize', on) }
-  }, [])
-  return h
 }
 
 /** Escena de la bóveda: separada de la página para montarla solo cuando las preferencias están cargadas. */

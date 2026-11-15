@@ -27,13 +27,15 @@ test.describe('CRUD completo desde la interfaz', () => {
     await dialog.getByRole('button', { name: 'Agregar', exact: true }).click()
     await expect(page.getByText('Camisa de lino agregado')).toBeVisible()
 
-    const card = page.locator('article', { hasText: 'Camisa de lino' })
+    // Aparece colgada en el estante de prendas superiores del armario.
+    const card = page.locator('.shelf[data-zone="top"] .garment', { hasText: 'Camisa de lino' })
     await expect(card).toBeVisible()
     await expect(card.locator('img')).toBeVisible()
     await page.screenshot({ path: 'e2e/screenshots/vestimenta.png' })
 
-    // Ficha individual.
-    await card.getByRole('link').click()
+    // Ficha individual: desde el panel de la prenda.
+    await card.locator('.garment-btn').click()
+    await page.getByRole('complementary', { name: 'Información de la prenda' }).getByRole('link', { name: 'Ficha completa' }).click()
     await expect(page.getByRole('heading', { name: 'Camisa de lino', level: 1 })).toBeVisible()
     await expect(page.getByText('Lino', { exact: true })).toBeVisible()
     await expect(page.getByText('Valor declarado por ti')).toBeVisible()
@@ -62,8 +64,8 @@ test.describe('CRUD completo desde la interfaz', () => {
 
     // Eliminación con confirmación que identifica el objeto.
     await page.goto('/vestimenta')
-    await page.locator('article', { hasText: 'Camisa de lino' }).hover()
-    await page.getByRole('button', { name: 'Mover a la papelera' }).click()
+    await page.locator('.garment', { hasText: 'Camisa de lino' }).locator('.garment-btn').click()
+    await page.getByRole('complementary', { name: 'Información de la prenda' }).getByRole('button', { name: 'Mover a la papelera' }).click()
     const confirm = page.getByRole('dialog')
     await expect(confirm).toContainText('Camisa de lino')
     await confirm.getByRole('button', { name: 'Mover a la papelera' }).click()
@@ -80,7 +82,7 @@ test.describe('CRUD completo desde la interfaz', () => {
     await expect(page.getByText('Camisa de lino restaurado')).toBeVisible()
     await expect(page.getByText('La papelera está vacía')).toBeVisible()
     await page.goto('/vestimenta')
-    await expect(page.locator('article', { hasText: 'Camisa de lino' })).toBeVisible()
+    await expect(page.locator('.garment', { hasText: 'Camisa de lino' })).toBeVisible()
   })
 
   test('formularios específicos: yate exige foto, vehículo con año, propiedad, empresa, reloj y accesorio', async ({ page }) => {
@@ -239,7 +241,9 @@ test.describe('CRUD completo desde la interfaz', () => {
 
     // La relación se ve desde la ficha de la prenda.
     await page.goto('/vestimenta')
-    await page.locator('article', { hasText: 'Camisa blanca' }).getByRole('link').click()
+    await page.locator('.garment', { hasText: 'Camisa blanca' }).locator('.garment-btn').click()
+    // Columna lateral o panel inferior según el ancho de la ventana.
+    await page.getByRole('link', { name: 'Ficha completa' }).click()
     await expect(page.getByRole('link', { name: 'Look de prueba' })).toBeVisible()
   })
 })
